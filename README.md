@@ -28,6 +28,8 @@ I have read a number of paper references to help me out. Here are the papers tha
 
 ### 2016
 
+- [Value Iteration Networks, NIPS 2016](https://arxiv.org/abs/1602.02867) (1)
+- [Deep Exploration via Bootstrapped DQN, NIPS 2016](https://arxiv.org/abs/1602.04621) (1)
 - [VIME: Variational Information Maximizing Exploration, NIPS 2016](https://arxiv.org/abs/1605.09674) (1)
 - [Cooperative Inverse Reinforcement Learning, NIPS 2016](https://arxiv.org/abs/1606.03137) (1)
 - [Principled Option Learning in Markov Decision Processes, EWRL, 2016](https://arxiv.org/abs/1609.05524) (3)
