@@ -154,7 +154,6 @@ class TwoRooms:
         print(self.grid)
 
 
-
 def test_nine_rooms():
     # Test the basic 9 room set-up.
     env = TwoRooms(9)
