@@ -12,7 +12,7 @@ There are several tricky things about this paper:
 - How can we formalize the MDP? It would be very helpful to have rules for when
   we can use options, and what we can assume from them. Also, how do prior
   options come into play?
-
+    
 - I don't understand why the "option" definition is one that says there exists a
   termination state. Shouldn't it just be a sub-policy that we follow with a
   higher-level controller?
@@ -72,10 +72,7 @@ which is what allows the following to happen:
 > At the beginning of each episode, the high-level controller observes the
 > subtask $\theta$ and gives the low-level controller a hint $h$.
 
-If we set $q$  so that it only lets choose prior options, yeah, I can see why we
-wouldn't get an interesting solution (though couldn't there still be a policy
-that would have very low cost?). Well, either way, I agree to make the problem
-interesting there must be a constraint on $q$, and the way to do that is to
+I can see why we need a constraint on $q$, and an easy way to do that is to
 limit the prior options.
 
 Let's say we start with two prior options indicated by \pi_h. (In the
@@ -97,7 +94,30 @@ the two learned options should be optimal for a variety of subtasks, and the
 easiest (most straightforward) partitioning is when one option is for going from
 left to right and the other is for the reverse direction.
 
+I haven't been able to get the algorithm running cleanly yet, but I hope that
+the algorithm was automatically able to determine the two different prior options,
+i.e. it was not hard-coded that one prior goes left to right and the other one
+in the reverse direction.
+
 
 ## How to Run on Different Domains
 
 TODO I am not sure yet
+
+
+## My Thoughts and Takeaways
+
+If this were to be formulated as a clear problem statement, it would probably
+be informally:
+
+> Given (MDP information) output (best q, \pi_h, \pi_\theta)
+
+The output of q and \pi_h make sense since they go hand in hand, given a subtask
+q must give us the best prior to use. My guess as to why \pi_\theta is there is
+that it tells us the true optimal policy to use for a subtask. Since we limit
+the priors (i.e. same thing as limiting the options) we want to test to see that
+our priors are close enough to the optimal policies, i.e. that they sufficiently
+generalize and cover different areas of the policy space (e.g. L-R vs R-L
+directions). For that, for a given subtask \theta, we'd compare \pi_\theta along
+with the \pi_q(\theta) which is the prior our learned q will choose. Yeah, I
+think that makes sense.
