@@ -26,7 +26,7 @@ There are several definitions of "options" stated in the paper. Let's combine
 them as follows:
 
 1. An option is a policy in a special domain where the agent can choose the
-   halting action $a_{\rm term}$ that terminates the episode.
+   halting action $a_{\rm term}$ that terminates the episode. [Section 2]
 2. An option is a pre-learned routine behavior that can be invoked by a
    high-level controller to solve some subtask. [Section 3]
 3. A good option should therefore be used by many subtasks and it should be
@@ -36,16 +36,15 @@ Don't forget, THETA = SUBTASKS!!! It's not for anything else! These simply have
 a specific starting state (hard-coded into the code after being randomly
 sampled) and a specific goal state.
 
-There is a difference between *prior* options and *learned* options.
+There is a difference between *prior* options and *optimal* options. Use \pi_h
+and \pi_\theta for these.
 
 - Intrinsic cost: KL divergence from prior option and actual executed option.
 - Extrinsic cost: discounted sum of costs due to actual executed option.
 
 These add up to form 'free energy' but are usually competing objectives. I
 understand the equations now in the paper (page 3) which are different ways of
-mathematically expressing free energy. But I guess I'm not sure why we call it
-'free energy' really it's an arbitrary optimization problem where we minimize
-competing objectives!
+mathematically expressing free energy.
 
 There are some KL divergences in the paper, mostly looking like
 E[sum_of_log_ratios] which is fine and matches the definition.
@@ -82,7 +81,7 @@ E-M updates.) Then after seeing the SUBTASK, i.e. (start,end) state pair, the
 "high-level controller" has to choose one of the two prior options to execute.
 
 It can execute that prior option, but the results should be bad (at least in the
-beginning) so it can also use a learned option, indicated by \pi_\theta. 
+beginning) so it can also use an "optimal" policy, indicated by \pi_\theta. 
 
 
 ## Experiments
