@@ -1,4 +1,4 @@
-# Reinforcement_Learning_Algorithms
+# Reinforcement Learning Algorithms
 
 I will use this repository to implement various reinforcement learning algorithms, because I'm sick of reading them but not really *getting* them. Hence, hopefully this repository will help me understand them better. I will also implement various supporting code as needed, such as for simple custom scenarios like GridWorld. Or I can use OpenAI gym.
 
@@ -17,12 +17,12 @@ Here are the algorithms currently implemented or in progress (indicated with WIP
 
 # References
 
-I have read a number of paper references to help me out. Here are the papers that I have read, numbered on a (1) to (5) scale where a (1)  means I essentially haven't read it yet, while a (5) means I feel confident that I understand almost everything about the paper. Within a single year, these papers should be organized according to publication date, which gives an idea of how these contributions were organized.
+I have read a number of paper references to help me out. Here are the papers that I have read, numbered on a (1) to (5) scale where a (1)  means I essentially haven't read it yet, while a (5) means I feel confident that I understand almost everything about the paper. Within a single year, these papers should be organized according to publication date, which gives an idea of how these contributions were organized. Summaries for some of these papers are [in my paper notes repository](https://github.com/DanielTakeshi/Paper_Notes).
 
 ### 2017
 
 - [#Exploration: A Study of Count-Based Exploration for Deep Reinforcement Learning (under review)](https://arxiv.org/abs/1611.04717) (1)
-- [RL^2: Fast Reinforcement Learning via Slow Reinforcement Learning (under review)](https://arxiv.org/abs/1611.02779) (4) [[Summary](https://github.com/DanielTakeshi/Reinforcement_Learning_Algorithms/blob/master/Paper-Summaries/RL2-Fast_Reinforcement_Learning_via_Slow_Reinforcement_Learning.md)]
+- [RL^2: Fast Reinforcement Learning via Slow Reinforcement Learning (under review)](https://arxiv.org/abs/1611.02779) (4) [[Summary](https://github.com/DanielTakeshi/Paper_Notes/blob/master/reinforcement_learning/RL2-Fast_Reinforcement_Learning_via_Slow_Reinforcement_Learning.md)]
 - Composing Meta-Policies for Autonomous Driving Using Hierarchical Deep Reinforcement Learning (under review) (5)
 - Multilateral Surgical Pattern Cutting in 2D Orthotropic Gauze with Deep Reinforcement Learning Policies for Tensioning (under review) (5)
 
@@ -32,8 +32,8 @@ I have read a number of paper references to help me out. Here are the papers tha
 - [Deep Exploration via Bootstrapped DQN, NIPS 2016](https://arxiv.org/abs/1602.04621) (1)
 - [VIME: Variational Information Maximizing Exploration, NIPS 2016](https://arxiv.org/abs/1605.09674) (1)
 - [Cooperative Inverse Reinforcement Learning, NIPS 2016](https://arxiv.org/abs/1606.03137) (1)
-- [Principled Option Learning in Markov Decision Processes, EWRL, 2016](https://arxiv.org/abs/1609.05524) (4) [[Summary](https://github.com/DanielTakeshi/Reinforcement_Learning_Algorithms/blob/master/Paper-Summaries/Principled_Option_Learning_in_Markov_Decision_Processes.md)]
-- [Taming the Noise in Reinforcement Learning via Soft Updates, UAI 2016](https://arxiv.org/abs/1512.08562) (4) [[Summary](https://github.com/DanielTakeshi/Reinforcement_Learning_Algorithms/blob/master/Paper-Summaries/Taming_the_Noise_in_Reinforcement_Learning_via_Soft_Updates.md)]
+- [Principled Option Learning in Markov Decision Processes, EWRL, 2016](https://arxiv.org/abs/1609.05524) (4) [[Summary](https://github.com/DanielTakeshi/Paper_Notes/blob/master/reinforcement_learning/Principled_Option_Learning_in_Markov_Decision_Processes.md)]
+- [Taming the Noise in Reinforcement Learning via Soft Updates, UAI 2016](https://arxiv.org/abs/1512.08562) (4) [[Summary](https://github.com/DanielTakeshi/Paper_Notes/blob/master/reinforcement_learning/Taming_the_Noise_in_Reinforcement_Learning_via_Soft_Updates.md)]
 - [Benchmarking Deep Reinforcement Learning for Continuous Control, ICML 2016](https://arxiv.org/abs/1604.06778) (3)
 - [Dueling Network Architectures for Deep Reinforcement Learning, ICML 2016](https://arxiv.org/abs/1511.06581) (1)
 - [Asynchronous Methods for Deep Reinforcement Learning, ICML 2016](https://arxiv.org/abs/1602.01783) (3)
