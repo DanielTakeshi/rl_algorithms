@@ -1,5 +1,23 @@
 """
 Code for basic tabular Q-learning. This is adapted from Denny Britz's repository.
+
+Observations:
+
+- I was confused why the agent always seemed to go up at the start. But then I
+  found out it's because np.argmax(Q[observation]) will return the leading
+  index, and at the start, it's 0 all the way, so it always picks the first one
+  which is to go up (see cliff_walking.py). It's a little annoying but not a big
+  deal, it works out in the end.
+
+- The policy_fn will return one 0.925 and three 0.025s, since it will pick the
+  best action and *then* adjust for epsilons. If I want to see how the Q-values
+  are evolving, I need to use Q[observation] directly, not A.
+
+- To print, use env.render(). Very useful for the grid-like settings.
+
+- There's no extra reward for the goal state. It's just -1 for all R(s,a,s')
+  unless the successor (new_position in the code) is the cliff, in which case
+  it's -100.
 """
 
 from __future__ import print_function
@@ -68,18 +86,16 @@ def q_learning(env, num_episodes, discount_factor=1.0, alpha=0.5, epsilon=0.1):
     policy = make_epsilon_greedy_policy(Q, epsilon, env.action_space.n)
 
     for i_episode in range(num_episodes):
-        # Print out which episode we're on, useful for debugging.
         if (i_episode + 1) % 1 == 0:
             print("\rEpisode {}/{}.".format(i_episode + 1, num_episodes), end="")
             sys.stdout.flush()
-
-        # Reset the environment and pick the first action
         state = env.reset()
                         
         # One step in the environment
         for t in itertools.count():
 
-            # Take a step
+            # Take a step (note: action_probs is always a 0.925-0.025x3 split
+            # due to the way the code is structured).
             action_probs = policy(state)
             action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
             next_state, reward, done, _ = env.step(action)
