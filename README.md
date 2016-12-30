@@ -32,7 +32,7 @@ I have read a number of paper references to help me out. Here are the papers tha
 - [Deep Exploration via Bootstrapped DQN, NIPS 2016](https://arxiv.org/abs/1602.04621) (1)
 - [VIME: Variational Information Maximizing Exploration, NIPS 2016](https://arxiv.org/abs/1605.09674) (1)
 - [Cooperative Inverse Reinforcement Learning, NIPS 2016](https://arxiv.org/abs/1606.03137) (1)
-- [Principled Option Learning in Markov Decision Processes, EWRL, 2016](https://arxiv.org/abs/1609.05524) (3) [[Summary](https://github.com/DanielTakeshi/Reinforcement_Learning_Algorithms/blob/master/Paper-Summaries/Principled_Option_Learning_in_Markov_Decision_Processes.md)]
+- [Principled Option Learning in Markov Decision Processes, EWRL, 2016](https://arxiv.org/abs/1609.05524) (4) [[Summary](https://github.com/DanielTakeshi/Reinforcement_Learning_Algorithms/blob/master/Paper-Summaries/Principled_Option_Learning_in_Markov_Decision_Processes.md)]
 - [Taming the Noise in Reinforcement Learning via Soft Updates, UAI 2016](https://arxiv.org/abs/1512.08562) (4) [[Summary](https://github.com/DanielTakeshi/Reinforcement_Learning_Algorithms/blob/master/Paper-Summaries/Taming_the_Noise_in_Reinforcement_Learning_via_Soft_Updates.md)]
 - [Benchmarking Deep Reinforcement Learning for Continuous Control, ICML 2016](https://arxiv.org/abs/1604.06778) (3)
 - [Dueling Network Architectures for Deep Reinforcement Learning, ICML 2016](https://arxiv.org/abs/1511.06581) (1)
