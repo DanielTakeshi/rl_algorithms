@@ -36,7 +36,6 @@ import gym
 import itertools
 import matplotlib
 import numpy as np
-import pandas as pd
 import sys
 if "../" not in sys.path:
     sys.path.append("../") 
@@ -135,7 +134,6 @@ if __name__ == "__main__":
     the correct figdir!! I don't want to override figures.
     """
     env = CliffWalkingEnv()
-    print("Now running Q-learning ...")
     Q, stats = q_learning(env, 500)
     plotting.plot_episode_stats(stats, 
                                 smoothing_window=10,
