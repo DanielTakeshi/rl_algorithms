@@ -21,7 +21,7 @@ I have read a number of paper references to help me out. Here are the papers tha
 
 ### 2017
 
-- [#Exploration: A Study of Count-Based Exploration for Deep Reinforcement Learning (under review)](https://arxiv.org/abs/1611.04717) (1)
+- [#Exploration: A Study of Count-Based Exploration for Deep Reinforcement Learning (under review)](https://arxiv.org/abs/1611.04717) (4) [[Summary](https://github.com/DanielTakeshi/Paper_Notes/blob/master/reinforcement_learning/%23Exploration:_A_Study_of_Count-Based_Exploration_for_Deep_Reinforcement_Learning.md)]
 - [RL^2: Fast Reinforcement Learning via Slow Reinforcement Learning (under review)](https://arxiv.org/abs/1611.02779) (4) [[Summary](https://github.com/DanielTakeshi/Paper_Notes/blob/master/reinforcement_learning/RL2-Fast_Reinforcement_Learning_via_Slow_Reinforcement_Learning.md)]
 - Composing Meta-Policies for Autonomous Driving Using Hierarchical Deep Reinforcement Learning (under review) (5)
 - Multilateral Surgical Pattern Cutting in 2D Orthotropic Gauze with Deep Reinforcement Learning Policies for Tensioning (under review) (5)
