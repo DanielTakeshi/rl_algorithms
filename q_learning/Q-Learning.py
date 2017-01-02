@@ -19,9 +19,16 @@ Observations for the **cliff_walking** scenario:
   unless the successor (new_position in the code) is the cliff, in which case
   it's -100.
 
-This code is general so it doesn't have to be cliff-walking. At the end, it uses
-the plotting script, but I should probably roll out a modified verison for my
-own use.
+Other observations:
+
+- This code is general so it doesn't have to be cliff-walking, **but** you have
+  to be careful to use an environment that gives a single number as a state, not
+  a continuous state (e.g., unfortunately CartPole wouldn't work here). I can
+  use FrozenLake-v0 but even a 4x4 space requires 10k or so iterations to see
+  improvement.
+
+- At the end, it uses the plotting script, but I should probably roll out a
+  modified verison for my own use.
 """
 
 from __future__ import print_function
@@ -35,6 +42,7 @@ if "../" not in sys.path:
     sys.path.append("../") 
 from collections import defaultdict
 from lib.envs.cliff_walking import CliffWalkingEnv
+from lib.envs.gridworld import GridworldEnv
 from lib import plotting
 matplotlib.style.use('ggplot')
 
@@ -123,8 +131,14 @@ def q_learning(env, num_episodes, discount_factor=1.0, alpha=0.5, epsilon=0.1):
 
 
 if __name__ == "__main__":
-    """ Testing using Denny's implementation of Cliff Walking. """
+    """ Testing using Denny's implementation of Cliff Walking.  Make sure I use
+    the correct figdir!! I don't want to override figures.
+    """
     env = CliffWalkingEnv()
     print("Now running Q-learning ...")
     Q, stats = q_learning(env, 500)
-    plotting.plot_episode_stats(stats, noshow=True, figdir="figures/")
+    plotting.plot_episode_stats(stats, 
+                                smoothing_window=10,
+                                noshow=True, 
+                                figdir="figures/cliff_",
+                                dosave=True)
