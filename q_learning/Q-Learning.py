@@ -1,7 +1,7 @@
 """
 Code for basic tabular Q-learning. This is adapted from Denny Britz's repository.
 
-Observations:
+Observations for the **cliff_walking** scenario:
 
 - I was confused why the agent always seemed to go up at the start. But then I
   found out it's because np.argmax(Q[observation]) will return the leading
@@ -18,6 +18,10 @@ Observations:
 - There's no extra reward for the goal state. It's just -1 for all R(s,a,s')
   unless the successor (new_position in the code) is the cliff, in which case
   it's -100.
+
+This code is general so it doesn't have to be cliff-walking. At the end, it uses
+the plotting script, but I should probably roll out a modified verison for my
+own use.
 """
 
 from __future__ import print_function
@@ -123,4 +127,4 @@ if __name__ == "__main__":
     env = CliffWalkingEnv()
     print("Now running Q-learning ...")
     Q, stats = q_learning(env, 500)
-    plotting.plot_episode_stats(stats)
+    plotting.plot_episode_stats(stats, noshow=True, figdir="figures/")

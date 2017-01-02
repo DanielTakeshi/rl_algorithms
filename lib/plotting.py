@@ -60,13 +60,17 @@ def plot_value_function(V, title="Value Function"):
 
 
 
-def plot_episode_stats(stats, smoothing_window=10, noshow=False):
+def plot_episode_stats(stats, smoothing_window=10, noshow=False, figdir=""):
+    """ Modified to now save figures. Use the figdir to act as the directory
+    stem. """
+
     # Plot the episode length over time
     fig1 = plt.figure(figsize=(10,5))
     plt.plot(stats.episode_lengths)
     plt.xlabel("Epsiode")
     plt.ylabel("Epsiode Length")
     plt.title("Episode Length over Time")
+    plt.savefig(figdir + "episode_length_time.png", dpi=fig1.dpi)
     if noshow:
         plt.close(fig1)
     else:
@@ -79,6 +83,7 @@ def plot_episode_stats(stats, smoothing_window=10, noshow=False):
     plt.xlabel("Epsiode")
     plt.ylabel("Epsiode Reward (Smoothed)")
     plt.title("Episode Reward over Time (Smoothed over window size {})".format(smoothing_window))
+    plt.savefig(figdir + "episode_reward_time.png", dpi=fig2.dpi)
     if noshow:
         plt.close(fig2)
     else:
@@ -90,6 +95,7 @@ def plot_episode_stats(stats, smoothing_window=10, noshow=False):
     plt.xlabel("Time Steps")
     plt.ylabel("Episode")
     plt.title("Episode per time step")
+    plt.savefig(figdir + "episodes_per_time.png", dpi=fig3.dpi)
     if noshow:
         plt.close(fig3)
     else:
