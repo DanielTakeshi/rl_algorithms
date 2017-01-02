@@ -1,3 +1,8 @@
+"""
+This is adapted from Denny Britz's repository. I will modify as needed to
+replicate existing literature results.
+"""
+
 import numpy as np
 import sys
 from gym.envs.toy_text import discrete
@@ -22,7 +27,15 @@ class CliffWalkingEnv(discrete.DiscreteEnv):
         new_position = np.array(current) + np.array(delta)
         new_position = self._limit_coordinates(new_position).astype(int)
         new_state = np.ravel_multi_index(tuple(new_position), self.shape)
-        reward = -100.0 if self._cliff[tuple(new_position)] else -1.0
+
+        # Newer version of rewards/costs from G-learning paper
+        # reward = -100.0 if self._cliff[tuple(new_position)] else -1.0
+        reward = -1.0
+        if self._cliff[tuple(new_position)]:
+            reward = -100.0
+        elif tuple(new_position) == (3,11):
+            reward = 0.0
+
         is_done = self._cliff[tuple(new_position)] or (tuple(new_position) == (3,11))
         return [(1.0, new_state, reward, is_done)]
 

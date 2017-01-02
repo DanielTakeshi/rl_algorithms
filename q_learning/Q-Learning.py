@@ -134,9 +134,12 @@ if __name__ == "__main__":
     the correct figdir!! I don't want to override figures.
     """
     env = CliffWalkingEnv()
-    Q, stats = q_learning(env, 500)
+    Q, stats = q_learning(env, 
+                          num_episodes=500,
+                          discount_factor=0.95,
+                          epsilon=0.1)
     plotting.plot_episode_stats(stats, 
                                 smoothing_window=10,
-                                noshow=True, 
+                                noshow=False, 
                                 figdir="figures/cliff_",
                                 dosave=True)
