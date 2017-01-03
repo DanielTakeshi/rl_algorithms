@@ -1,5 +1,7 @@
 """
-Code for basic tabular Q-learning. This is adapted from Denny Britz's repository.
+Code for basic tabular Q-learning. This is adapted from Denny Britz's
+repository. I updated it to use a class to more closely match the G-learning
+code.
 
 Observations for the **cliff_walking** scenario:
 
@@ -46,100 +48,123 @@ from lib import plotting
 matplotlib.style.use('ggplot')
 
 
-def make_epsilon_greedy_policy(Q, epsilon, nA):
-    """ Creates an epsilon-greedy policy based on a given Q-function and
-    epsilon.
+class QLearningAgent():
 
-    Args:
-        Q: A dictionary that maps from state -> action-values.  Each value is a
-            numpy array of length nA (see below).
-        epsilon: The probability to select a random action; a float between 0
-            and 1.
-        nA: Number of actions in the environment.
+    def __init__(self, env):
+        """ For now, we'll make a limitation that we know the number of states
+        and actions.  It creates:
+        
+        - Q: Contains Q(state,action) values.
+        - N: Contains N(state,action) values, counts of the times each
+            state-action pair was visited; needed for some alpha updates.
 
-    Returns:
-        A function that takes the observation as an argument and returns the
-        probabilities for each action in the form of a numpy array of length nA.
-    """
-    def policy_fn(observation):
-        A = np.ones(nA, dtype=float) * epsilon / nA
-        best_action = np.argmax(Q[observation])
-        A[best_action] += (1.0 - epsilon)
-        return A
-    return policy_fn
+        Args:
+            env: An OpenAI gym environment, either custom or built-in, but be
+                aware that not all of them can be used in this setting.
+        """
+        ns, na = env.observation_space.n, env.action_space.n
+        self.Q = np.zeros((ns,na))
+        self.N = np.zeros((ns,na))
 
 
-def q_learning(env, num_episodes, discount_factor=1.0, alpha=0.5, epsilon=0.1):
-    """ Q-Learning algorithm: Off-policy TD control. Finds the optimal greedy
-    policy while following an epsilon-greedy policy.
+    def policy_exploration(self, state, epsilon=0.0):
+        """ The agent's current exploration policy. Right now we default to
+        epsilon-greedy on the Q(s,a) values.
+        
+        Args:
+            state: The current state the agent is in.
+            epsilon: The probability of taking a random action.
+        
+        Returns:
+            The action to take.
+        """
+        na = self.Q.shape[1]
+        action_probs = np.ones(na, dtype=float) * epsilon / na
+        best_action = np.argmax(self.Q[state,:])
+        action_probs[best_action] += (1.0-epsilon)
+        return np.random.choice(np.arange(na), p=action_probs)
+ 
 
-    Args:
-        env: OpenAI environment.
-        num_episodes: Number of episodes to run for.
-        discount_factor: Lambda time discount factor.
-        alpha: TD learning rate.
-        epsilon: Chance the sample a random action. Float betwen 0 and 1.
+    def alpha_schedule(self, t, state, action):
+        """ The alpha scheduling.
+        
+        Args:
+            t: The iteration of the current episode (t >= 1).
+            state: The current state.
+            action: The current action.
 
-    Returns:
-        A tuple (Q, episode_lengths). Q is the optimal action-value function, a
-        dictionary mapping state -> action values.  stats is an EpisodeStats
-        object with two numpy arrays for episode_lengths and episode_rewards.
-    """
-    # The final action-value function.
-    # A nested dictionary that maps state -> (action -> action-value).
-    Q = defaultdict(lambda: np.zeros(env.action_space.n))
+        Returns:
+            The alpha to use for the Q-learning update.
+        """
+        # return 0.5     # the most basic strategy
+        alpha = self.N[state,action] ** -0.8
+        assert 0 < alpha <= 1, "Error, alpha = {}".format(alpha)
+        return alpha
 
-    # Keeps track of useful statistics
-    stats = plotting.EpisodeStats(episode_lengths=np.zeros(num_episodes),
-                                  episode_rewards=np.zeros(num_episodes))
 
-    # The policy we're following
-    policy = make_epsilon_greedy_policy(Q, epsilon, env.action_space.n)
+    def q_learning(self, num_episodes, max_ep_steps=10000, discount=1.0, epsilon=0.1):
+        """ The Q-learning algorithm.
+    
+        Args:
+            num_episodes: Number of episodes to run.
+            max_ep_steps: Maximum time steps allocated to one episode.
+            discount: Standard discount factor, usually denoted as \gamma.
+            epsilon: Probability of taking random actions during exploration.
+    
+        Returns:
+            A tuple (Q, stats) of the Q-values and statistics, which should be
+            plotted and thoroughly analyzed.
+        """
+        cum_t = 0
+        stats = plotting.EpisodeStats(episode_lengths=np.zeros(num_episodes),
+                                      episode_rewards=np.zeros(num_episodes))
 
-    for i_episode in range(num_episodes):
-        if (i_episode + 1) % 1 == 0:
-            print("\rEpisode {}/{}.".format(i_episode + 1, num_episodes), end="")
-            sys.stdout.flush()
-        state = env.reset()
-                        
-        # One step in the environment
-        for t in itertools.count():
+        for i_episode in range(num_episodes):
+            if (i_episode+1) % 1 == 0:
+                print("\rEpisode {}/{}.".format(i_episode+1, num_episodes), end="")
+                sys.stdout.flush()
+            state = env.reset()
 
-            # Take a step (note: action_probs is always a 0.925-0.025x3 split
-            # due to the way the code is structured).
-            action_probs = policy(state)
-            action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
-            next_state, reward, done, _ = env.step(action)
+            # Run this episode until we finish as indicated by the environment.
+            for t in range(1, max_ep_steps+1):
 
-            # Update statistics
-            stats.episode_rewards[i_episode] += reward
-            stats.episode_lengths[i_episode] = t
+                # Uses exploration policy to take a step.
+                action = self.policy_exploration(state, epsilon)
+                next_state, reward, done, _ = env.step(action)
 
-            # TD Update
-            best_next_action = np.argmax(Q[next_state])    
-            td_target = reward + discount_factor * Q[next_state][best_next_action]
-            td_delta = td_target - Q[state][action]
-            Q[state][action] += alpha * td_delta
+                # Collect statistics (cum_t currently not used).
+                stats.episode_rewards[i_episode] += reward
+                stats.episode_lengths[i_episode] = t
+                self.N[state,action] += 1
+                cum_t += 1
 
-            if done:
-                break
-            state = next_state
+                # The official Q-learning update.
+                alpha = self.alpha_schedule(t, state, action)
+                best_next_action = np.argmax(self.Q[next_state,:])
+                td_target = reward + discount * self.Q[next_state,best_next_action]
+                td_delta = td_target - self.Q[state,action]
+                self.Q[state,action] += (alpha * td_delta)
 
-    print("")
-    return Q, stats
+                if done:
+                    break
+                state = next_state
+    
+        print("")
+        return self.Q, stats
 
 
 if __name__ == "__main__":
-    """ Testing using Denny's implementation of Cliff Walking.  Make sure I use
-    the correct figdir!! I don't want to override figures.
-    """
+    """ This will run Q-learning. Be sure to double check all parameters,
+    including the ones for plotting (e.g., file names).  """
+
     env = CliffWalkingEnv()
-    Q, stats = q_learning(env, 
-                          num_episodes=500,
-                          discount_factor=0.95,
-                          epsilon=0.1)
-    plotting.plot_episode_stats(stats, 
-                                smoothing_window=10,
-                                noshow=False, 
+    agent = QLearningAgent(env) 
+    Q, stats = agent.q_learning(num_episodes=1000,
+                                max_ep_steps=500,
+                                discount=0.95,
+                                epsilon=0.1)
+    plotting.plot_episode_stats(stats,
+                                smoothing_window=5,
+                                noshow=False,
                                 figdir="figures/cliff_",
                                 dosave=True)
