@@ -163,13 +163,13 @@ if __name__ == "__main__":
 
     # Should test with k in {1e-3, 1e-4, 5*1e-5, 1e-6}
     env = CliffWalkingEnv()
-    agent = GLearningAgent(env, k=1e-4) 
+    agent = GLearningAgent(env, k=1e-3) 
     G, stats = agent.g_learning(num_episodes=1000,
                                 max_ep_steps=500,
                                 discount=0.95,
                                 epsilon=0.1)
     plotting.plot_episode_stats(stats,
-                                smoothing_window=10,
+                                smoothing_window=5,
                                 noshow=False,
                                 figdir="figures/cliff_",
                                 dosave=True)
