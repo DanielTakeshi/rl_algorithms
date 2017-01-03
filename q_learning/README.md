@@ -9,7 +9,7 @@ I tested with `CliffWorldEnv` using the following settings:
 - number of episodes = 1000
 - discount factor = 0.95
 - alpha = n(s,a)^(-0.8) for the temporal difference update, where n(s,a) is the number of times that (s,a) have been visited. It's Equation 29 in reference [1].
-- epsilon = 0.1 (for greedy-epsilon exploration, the actions themselves are deterministic once we have one)
+- epsilon = 0.1 for greedy-epsilon exploration. Once the agent executes an action, it's deterministic.
 
 For rewards, the agent gets a -1 living reward, gets 0 if it manages to get to the bottom right corner, but gets -100 if it falls off the cliff. The agent starts at the bottom left corner and can move in one of four directions deterministically (but the **exploration policy** is epsilon-greedy based on the Q(s,a) values).
 
