@@ -7,13 +7,12 @@ Here are the algorithms which I already know quite well (not in this repository)
 - Value Iteration and Policy Iteration
 - SARSA, tabular version
 - Q-Learning with linear function approximation (implemented in closed-source code, sorry)
-- Deep Q-Networks, vanilla version (understood via [spragnur's deep_q_rl code](https://github.com/spragunr/deep_q_rl) as well as [my personal fork](https://github.com/DanielTakeshi/deep_q_rl))
 
 Here are the algorithms currently implemented or in progress:
 
 - [Q-Learning, tabular version](https://github.com/DanielTakeshi/rl_algorithms/tree/master/q_learning) (should be correct)
 - [G-Learning](https://github.com/DanielTakeshi/rl_algorithms/tree/master/g_learning) (currently verifying)
-- Learning with Options
+- [Deep-Q Networks](https://github.com/DanielTakeshi/rl_algorithms/tree/master/dqn), vanilla version, currently in progress with tensorflow. I also understood these via [spragnur's deep_q_rl code](https://github.com/spragunr/deep_q_rl) and I tested using [my personal fork](https://github.com/DanielTakeshi/deep_q_rl).
 
 # References
 
