@@ -1,319 +1,264 @@
-"""
-This isn't my code, it's (edited) from:
-    https://github.com/tatsuyaokubo/dqn/blob/master/dqn.py
-
--Daniel Seita
-"""
-
-# coding:utf-8
-
-import os
-import gym
-import random
+import sys
+import gym.spaces
+import itertools
 import numpy as np
-import tensorflow as tf
-from collections import deque
-from skimage.color import rgb2gray
-from skimage.transform import resize
-from keras.models import Sequential
-from keras.layers import Convolution2D, Flatten, Dense
+import random
+import tensorflow                as tf
+import tensorflow.contrib.layers as layers
+from collections import namedtuple
+from dqn_utils import *
 
-ENV_NAME = 'Breakout-v0'  # Environment name
-FRAME_WIDTH = 84  # Resized frame width
-FRAME_HEIGHT = 84  # Resized frame height
-NUM_EPISODES = 12000  # Number of episodes the agent plays
-STATE_LENGTH = 4  # Number of most recent frames to produce the input to the network
-GAMMA = 0.99  # Discount factor
-EXPLORATION_STEPS = 1000000  # Number of steps over which the initial value of epsilon is linearly annealed to its final value
-INITIAL_EPSILON = 1.0  # Initial value of epsilon in epsilon-greedy
-FINAL_EPSILON = 0.1  # Final value of epsilon in epsilon-greedy
-INITIAL_REPLAY_SIZE = 20000  # Number of steps to populate the replay memory before training starts
-NUM_REPLAY_MEMORY = 400000  # Number of replay memory the agent uses for training
-BATCH_SIZE = 32  # Mini batch size
-TARGET_UPDATE_INTERVAL = 10000  # The frequency with which the target network is updated
-TRAIN_INTERVAL = 4  # The agent selects 4 actions between successive updates
-LEARNING_RATE = 0.00025  # Learning rate used by RMSProp
-MOMENTUM = 0.95  # Momentum used by RMSProp
-MIN_GRAD = 0.01  # Constant added to the squared gradient in the denominator of the RMSProp update
-SAVE_INTERVAL = 300000  # The frequency with which the network is saved
-NO_OP_STEPS = 30  # Maximum number of "do nothing" actions to be performed by the agent at the start of an episode
-LOAD_NETWORK = False
-TRAIN = True
-SAVE_NETWORK_PATH = 'saved_networks/' + ENV_NAME
-SAVE_SUMMARY_PATH = 'summary/' + ENV_NAME
-NUM_EPISODES_AT_TEST = 30  # Number of episodes the agent plays at test time
+OptimizerSpec = namedtuple("OptimizerSpec", ["constructor", "kwargs", "lr_schedule"])
 
+def learn(env,
+          q_func,
+          optimizer_spec,
+          session,
+          exploration=LinearSchedule(1000000, 0.1),
+          stopping_criterion=None,
+          replay_buffer_size=1000000,
+          batch_size=32,
+          gamma=0.99,
+          learning_starts=50000,
+          learning_freq=4,
+          frame_history_len=4,
+          target_update_freq=10000,
+          grad_norm_clipping=10):
+    """Run Deep Q-learning algorithm.
 
-class Agent():
-    def __init__(self, num_actions):
-        self.num_actions = num_actions
-        self.epsilon = INITIAL_EPSILON
-        self.epsilon_step = (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORATION_STEPS
-        self.t = 0
-        
-        # Parameters used for summary
-        self.total_reward = 0
-        self.total_q_max = 0
-        self.total_loss = 0
-        self.duration = 0
-        self.episode = 0
-        
-        # Create replay memory
-        self.replay_memory = deque()
-        
-        # Create q network
-        self.s, self.q_values, q_network = self.build_network()
-        q_network_weights = q_network.trainable_weights
-        
-        # Create target network
-        self.st, self.target_q_values, target_network = self.build_network()
-        target_network_weights = target_network.trainable_weights
-        
-        # Define target network update operation
-        self.update_target_network = [target_network_weights[i].assign(q_network_weights[i]) for i in range(len(target_network_weights))]
-        
-        # Define loss and gradient update operation
-        self.a, self.y, self.loss, self.grads_update = self.build_training_op(q_network_weights)
-        
-        self.sess = tf.InteractiveSession()
-        self.saver = tf.train.Saver(q_network_weights)
-        self.summary_placeholders, self.update_ops, self.summary_op = self.setup_summary()
-        self.summary_writer = tf.train.SummaryWriter(SAVE_SUMMARY_PATH, self.sess.graph)
-        
-        if not os.path.exists(SAVE_NETWORK_PATH):
-            os.makedirs(SAVE_NETWORK_PATH)
+    You can specify your own convnet using q_func.
+
+    All schedules are w.r.t. total number of steps taken in the environment.
+
+    Parameters
+    ----------
+    env: gym.Env
+        gym environment to train on.
+    q_func: function
+        Model to use for computing the q function. It should accept the
+        following named arguments:
+            img_in: tf.Tensor
+                tensorflow tensor representing the input image
+            num_actions: int
+                number of actions
+            scope: str
+                scope in which all the model related variables
+                should be created
+            reuse: bool
+                whether previously created variables should be reused.
+    optimizer_spec: OptimizerSpec
+        Specifying the constructor and kwargs, as well as learning rate schedule
+        for the optimizer
+    session: tf.Session
+        tensorflow session to use.
+    exploration: rl_algs.deepq.utils.schedules.Schedule
+        schedule for probability of chosing random action.
+    stopping_criterion: (env, t) -> bool
+        should return true when it's ok for the RL algorithm to stop.
+        takes in env and the number of steps executed so far.
+    replay_buffer_size: int
+        How many memories to store in the replay buffer.
+    batch_size: int
+        How many transitions to sample each time experience is replayed.
+    gamma: float
+        Discount Factor
+    learning_starts: int
+        After how many environment steps to start replaying experiences
+    learning_freq: int
+        How many steps of environment to take between every experience replay
+    frame_history_len: int
+        How many past frames to include as input to the model.
+    target_update_freq: int
+        How many experience replay rounds (not steps!) to perform between
+        each update to the target Q network
+    grad_norm_clipping: float or None
+        If not None gradients' norms are clipped to this value.
+    """
+    assert type(env.observation_space) == gym.spaces.Box
+    assert type(env.action_space)      == gym.spaces.Discrete
+
+    ###############
+    # BUILD MODEL #
+    ###############
+
+    if len(env.observation_space.shape) == 1:
+        # This means we are running on low-dimensional observations (e.g. RAM)
+        input_shape = env.observation_space.shape
+    else:
+        img_h, img_w, img_c = env.observation_space.shape
+        input_shape = (img_h, img_w, frame_history_len * img_c)
+    num_actions = env.action_space.n
+
+    # set up placeholders
+    # placeholder for current observation (or state)
+    obs_t_ph              = tf.placeholder(tf.uint8, [None] + list(input_shape))
+    # placeholder for current action
+    act_t_ph              = tf.placeholder(tf.int32,   [None])
+    # placeholder for current reward
+    rew_t_ph              = tf.placeholder(tf.float32, [None])
+    # placeholder for next observation (or state)
+    obs_tp1_ph            = tf.placeholder(tf.uint8, [None] + list(input_shape))
+    # placeholder for end of episode mask
+    # this value is 1 if the next state corresponds to the end of an episode,
+    # in which case there is no Q-value at the next state; at the end of an
+    # episode, only the current state reward contributes to the target, not the
+    # next state Q-value (i.e. target is just rew_t_ph, not rew_t_ph + gamma * q_tp1)
+    done_mask_ph          = tf.placeholder(tf.float32, [None])
+
+    # casting to float on GPU ensures lower data transfer times.
+    obs_t_float   = tf.cast(obs_t_ph,   tf.float32) / 255.0
+    obs_tp1_float = tf.cast(obs_tp1_ph, tf.float32) / 255.0
+
+    # Here, you should fill in your own code to compute the Bellman error. This requires
+    # evaluating the current and next Q-values and constructing the corresponding error.
+    # TensorFlow will differentiate this error for you, you just need to pass it to the
+    # optimizer. See assignment text for details.
+    # Your code should produce one scalar-valued tensor: total_error
+    # This will be passed to the optimizer in the provided code below.
+    # Your code should also produce two collections of variables:
+    # q_func_vars
+    # target_q_func_vars
+    # These should hold all of the variables of the Q-function network and target network,
+    # respectively. A convenient way to get these is to make use of TF's "scope" feature.
+    # For example, you can create your Q-function network with the scope "q_func" like this:
+    # <something> = q_func(obs_t_float, num_actions, scope="q_func", reuse=False)
+    # And then you can obtain the variables like this:
+    # q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
+    # Older versions of TensorFlow may require using "VARIABLES" instead of "GLOBAL_VARIABLES"
+    ######
     
-        self.sess.run(tf.initialize_all_variables())
-        
-        # Load network
-        if LOAD_NETWORK:
-            self.load_network()
+    # YOUR CODE HERE
 
-# Initialize target network
-                self.sess.run(self.update_target_network)
-                    
-                    def build_network(self):
-model = Sequential()
-    model.add(Convolution2D(32, 8, 8, subsample=(4, 4), activation='relu', input_shape=(STATE_LENGTH, FRAME_WIDTH, FRAME_HEIGHT)))
-        model.add(Convolution2D(64, 4, 4, subsample=(2, 2), activation='relu'))
-        model.add(Convolution2D(64, 3, 3, subsample=(1, 1), activation='relu'))
-        model.add(Flatten())
-        model.add(Dense(512, activation='relu'))
-        model.add(Dense(self.num_actions))
-        
-        s = tf.placeholder(tf.float32, [None, STATE_LENGTH, FRAME_WIDTH, FRAME_HEIGHT])
-        q_values = model(s)
-        
-        return s, q_values, model
-    
-    def build_training_op(self, q_network_weights):
-        a = tf.placeholder(tf.int64, [None])
-        y = tf.placeholder(tf.float32, [None])
-        
-        # Convert action to one hot vector
-        a_one_hot = tf.one_hot(a, self.num_actions, 1.0, 0.0)
-        q_value = tf.reduce_sum(tf.mul(self.q_values, a_one_hot), reduction_indices=1)
-        
-        # Clip the error, the loss is quadratic when the error is in (-1, 1), and linear outside of that region
-        error = tf.abs(y - q_value)
-        quadratic_part = tf.clip_by_value(error, 0.0, 1.0)
-        linear_part = error - quadratic_part
-        loss = tf.reduce_mean(0.5 * tf.square(quadratic_part) + linear_part)
-        
-        optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE, momentum=MOMENTUM, epsilon=MIN_GRAD)
-        grads_update = optimizer.minimize(loss, var_list=q_network_weights)
-        
-        return a, y, loss, grads_update
+    ######
 
-def get_initial_state(self, observation, last_observation):
-    processed_observation = np.maximum(observation, last_observation)
-        processed_observation = np.uint8(resize(rgb2gray(processed_observation), (FRAME_WIDTH, FRAME_HEIGHT)) * 255)
-        state = [processed_observation for _ in range(STATE_LENGTH)]
-        return np.stack(state, axis=0)
+    # construct optimization op (with gradient clipping)
+    learning_rate = tf.placeholder(tf.float32, (), name="learning_rate")
+    optimizer = optimizer_spec.constructor(learning_rate=learning_rate, **optimizer_spec.kwargs)
+    train_fn = minimize_and_clip(optimizer, total_error,
+                 var_list=q_func_vars, clip_val=grad_norm_clipping)
 
-    def get_action(self, state):
-        if self.epsilon >= random.random() or self.t < INITIAL_REPLAY_SIZE:
-            action = random.randrange(self.num_actions)
-        else:
-            action = np.argmax(self.q_values.eval(feed_dict={self.s: [np.float32(state / 255.0)]}))
-        
-        # Anneal epsilon linearly over time
-        if self.epsilon > FINAL_EPSILON and self.t >= INITIAL_REPLAY_SIZE:
-            self.epsilon -= self.epsilon_step
-        
-        return action
+    # update_target_fn will be called periodically to copy Q network to target Q network
+    update_target_fn = []
+    for var, var_target in zip(sorted(q_func_vars,        key=lambda v: v.name),
+                               sorted(target_q_func_vars, key=lambda v: v.name)):
+        update_target_fn.append(var_target.assign(var))
+    update_target_fn = tf.group(*update_target_fn)
 
-def run(self, state, action, reward, terminal, observation):
-    next_state = np.append(state[1:, :, :], observation, axis=0)
+    # construct the replay buffer
+    replay_buffer = ReplayBuffer(replay_buffer_size, frame_history_len)
+
+    ###############
+    # RUN ENV     #
+    ###############
+    model_initialized = False
+    num_param_updates = 0
+    mean_episode_reward      = -float('nan')
+    best_mean_episode_reward = -float('inf')
+    last_obs = env.reset()
+    LOG_EVERY_N_STEPS = 10000
+
+    for t in itertools.count():
+        ### 1. Check stopping criterion
+        if stopping_criterion is not None and stopping_criterion(env, t):
+            break
+
+        ### 2. Step the env and store the transition
+        # At this point, "last_obs" contains the latest observation that was
+        # recorded from the simulator. Here, your code needs to store this
+        # observation and its outcome (reward, next observation, etc.) into
+        # the replay buffer while stepping the simulator forward one step.
+        # At the end of this block of code, the simulator should have been
+        # advanced one step, and the replay buffer should contain one more
+        # transition.
+        # Specifically, last_obs must point to the new latest observation.
+        # Useful functions you'll need to call:
+        # obs, reward, done, info = env.step(action)
+        # this steps the environment forward one step
+        # obs = env.reset()
+        # this resets the environment if you reached an episode boundary.
+        # Don't forget to call env.reset() to get a new observation if done
+        # is true!!
+        # Note that you cannot use "last_obs" directly as input
+        # into your network, since it needs to be processed to include context
+        # from previous frames. You should check out the replay buffer
+        # implementation in dqn_utils.py to see what functionality the replay
+        # buffer exposes. The replay buffer has a function called
+        # encode_recent_observation that will take the latest observation
+        # that you pushed into the buffer and compute the corresponding
+        # input that should be given to a Q network by appending some
+        # previous frames.
+        # Don't forget to include epsilon greedy exploration!
+        # And remember that the first time you enter this loop, the model
+        # may not yet have been initialized (but of course, the first step
+        # might as well be random, since you haven't trained your net...)
+
+        #####
         
-        # Clip all positive rewards at 1 and all negative rewards at -1, leaving 0 rewards unchanged
-        reward = np.clip(reward, -1, 1)
-        
-        # Store transition in replay memory
-        self.replay_memory.append((state, action, reward, next_state, terminal))
-        if len(self.replay_memory) > NUM_REPLAY_MEMORY:
-            self.replay_memory.popleft()
-    
-        if self.t >= INITIAL_REPLAY_SIZE:
-            # Train network
-            if self.t % TRAIN_INTERVAL == 0:
-                self.train_network()
+        # YOUR CODE HERE
+
+        #####
+
+        # at this point, the environment should have been advanced one step (and
+        # reset if done was true), and last_obs should point to the new latest
+        # observation
+
+        ### 3. Perform experience replay and train the network.
+        # note that this is only done if the replay buffer contains enough samples
+        # for us to learn something useful -- until then, the model will not be
+        # initialized and random actions should be taken
+        if (t > learning_starts and
+                t % learning_freq == 0 and
+                replay_buffer.can_sample(batch_size)):
+            # Here, you should perform training. Training consists of four steps:
+            # 3.a: use the replay buffer to sample a batch of transitions (see the
+            # replay buffer code for function definition, each batch that you sample
+            # should consist of current observations, current actions, rewards,
+            # next observations, and done indicator).
+            # 3.b: initialize the model if it has not been initialized yet; to do
+            # that, call
+            #    initialize_interdependent_variables(session, tf.global_variables(), {
+            #        obs_t_ph: obs_t_batch,
+            #        obs_tp1_ph: obs_tp1_batch,
+            #    })
+            # where obs_t_batch and obs_tp1_batch are the batches of observations at
+            # the current and next time step. The boolean variable model_initialized
+            # indicates whether or not the model has been initialized.
+            # Remember that you have to update the target network too (see 3.d)!
+            # 3.c: train the model. To do this, you'll need to use the train_fn and
+            # total_error ops that were created earlier: total_error is what you
+            # created to compute the total Bellman error in a batch, and train_fn
+            # will actually perform a gradient step and update the network parameters
+            # to reduce total_error. When calling session.run on these you'll need to
+            # populate the following placeholders:
+            # obs_t_ph
+            # act_t_ph
+            # rew_t_ph
+            # obs_tp1_ph
+            # done_mask_ph
+            # (this is needed for computing total_error)
+            # learning_rate -- you can get this from optimizer_spec.lr_schedule.value(t)
+            # (this is needed by the optimizer to choose the learning rate)
+            # 3.d: periodically update the target network by calling
+            # session.run(update_target_fn)
+            # you should update every target_update_freq steps, and you may find the
+            # variable num_param_updates useful for this (it was initialized to 0)
+            #####
             
-            # Update target network
-            if self.t % TARGET_UPDATE_INTERVAL == 0:
-                self.sess.run(self.update_target_network)
-            
-            # Save network
-            if self.t % SAVE_INTERVAL == 0:
-                save_path = self.saver.save(self.sess, SAVE_NETWORK_PATH + '/' + ENV_NAME, global_step=self.t)
-                print('Successfully saved: ' + save_path)
+            # YOUR CODE HERE
 
-self.total_reward += reward
-    self.total_q_max += np.max(self.q_values.eval(feed_dict={self.s: [np.float32(state / 255.0)]}))
-        self.duration += 1
-        
-        if terminal:
-            # Write summary
-            if self.t >= INITIAL_REPLAY_SIZE:
-                stats = [self.total_reward, self.total_q_max / float(self.duration),
-                         self.duration, self.total_loss / (float(self.duration) / float(TRAIN_INTERVAL))]
-                         for i in range(len(stats)):
-                             self.sess.run(self.update_ops[i], feed_dict={
-                                           self.summary_placeholders[i]: float(stats[i])
-                                           })
-                         summary_str = self.sess.run(self.summary_op)
-            self.summary_writer.add_summary(summary_str, self.episode + 1)
-            
-            # Debug
-            if self.t < INITIAL_REPLAY_SIZE:
-                mode = 'random'
-    elif INITIAL_REPLAY_SIZE <= self.t < INITIAL_REPLAY_SIZE + EXPLORATION_STEPS:
-        mode = 'explore'
-            else:
-                mode = 'exploit'
-        print('EPISODE: {0:6d} / TIMESTEP: {1:8d} / DURATION: {2:5d} / EPSILON: {3:.5f} / TOTAL_REWARD: {4:3.0f} / AVG_MAX_Q: {5:2.4f} / AVG_LOSS: {6:.5f} / MODE: {7}'.format(
-                                                                                                                                                                               self.episode + 1, self.t, self.duration, self.epsilon,
-                                                                                                                                                                               self.total_reward, self.total_q_max / float(self.duration),
-                                                                                                                                                                               self.total_loss / (float(self.duration) / float(TRAIN_INTERVAL)), mode))
-            
-            self.total_reward = 0
-            self.total_q_max = 0
-            self.total_loss = 0
-            self.duration = 0
-            self.episode += 1
+            #####
 
-self.t += 1
-    
-    return next_state
-    
-    def train_network(self):
-        state_batch = []
-        action_batch = []
-        reward_batch = []
-        next_state_batch = []
-        terminal_batch = []
-        y_batch = []
-        
-        # Sample random minibatch of transition from replay memory
-        minibatch = random.sample(self.replay_memory, BATCH_SIZE)
-        for data in minibatch:
-            state_batch.append(data[0])
-            action_batch.append(data[1])
-            reward_batch.append(data[2])
-            next_state_batch.append(data[3])
-            terminal_batch.append(data[4])
-        
-        # Convert True to 1, False to 0
-        terminal_batch = np.array(terminal_batch) + 0
-        
-        target_q_values_batch = self.target_q_values.eval(feed_dict={self.st: np.float32(np.array(next_state_batch) / 255.0)})
-        y_batch = reward_batch + (1 - terminal_batch) * GAMMA * np.max(target_q_values_batch, axis=1)
-        
-        loss, _ = self.sess.run([self.loss, self.grads_update], feed_dict={
-                                self.s: np.float32(np.array(state_batch) / 255.0),
-                                self.a: action_batch,
-                                self.y: y_batch
-                                })
-                                
-        self.total_loss += loss
-    
-    def setup_summary(self):
-        episode_total_reward = tf.Variable(0.)
-        tf.scalar_summary(ENV_NAME + '/Total Reward/Episode', episode_total_reward)
-        episode_avg_max_q = tf.Variable(0.)
-        tf.scalar_summary(ENV_NAME + '/Average Max Q/Episode', episode_avg_max_q)
-        episode_duration = tf.Variable(0.)
-        tf.scalar_summary(ENV_NAME + '/Duration/Episode', episode_duration)
-        episode_avg_loss = tf.Variable(0.)
-        tf.scalar_summary(ENV_NAME + '/Average Loss/Episode', episode_avg_loss)
-        summary_vars = [episode_total_reward, episode_avg_max_q, episode_duration, episode_avg_loss]
-        summary_placeholders = [tf.placeholder(tf.float32) for _ in range(len(summary_vars))]
-        update_ops = [summary_vars[i].assign(summary_placeholders[i]) for i in range(len(summary_vars))]
-        summary_op = tf.merge_all_summaries()
-        return summary_placeholders, update_ops, summary_op
-    
-    def load_network(self):
-        checkpoint = tf.train.get_checkpoint_state(SAVE_NETWORK_PATH)
-        if checkpoint and checkpoint.model_checkpoint_path:
-            self.saver.restore(self.sess, checkpoint.model_checkpoint_path)
-            print('Successfully loaded: ' + checkpoint.model_checkpoint_path)
-        else:
-            print('Training new network...')
-
-def get_action_at_test(self, state):
-    if random.random() <= 0.05:
-        action = random.randrange(self.num_actions)
-        else:
-            action = np.argmax(self.q_values.eval(feed_dict={self.s: [np.float32(state / 255.0)]}))
-
-    self.t += 1
-        
-        return action
-
-
-def preprocess(observation, last_observation):
-    processed_observation = np.maximum(observation, last_observation)
-    processed_observation = np.uint8(resize(rgb2gray(processed_observation), (FRAME_WIDTH, FRAME_HEIGHT)) * 255)
-    return np.reshape(processed_observation, (1, FRAME_WIDTH, FRAME_HEIGHT))
-
-
-def main():
-    env = gym.make(ENV_NAME)
-    agent = Agent(num_actions=env.action_space.n)
-    
-    if TRAIN:  # Train mode
-        for _ in range(NUM_EPISODES):
-            terminal = False
-            observation = env.reset()
-            for _ in range(random.randint(1, NO_OP_STEPS)):
-                last_observation = observation
-                observation, _, _, _ = env.step(0)  # Do nothing
-            state = agent.get_initial_state(observation, last_observation)
-            while not terminal:
-                last_observation = observation
-                action = agent.get_action(state)
-                observation, reward, terminal, _ = env.step(action)
-                # env.render()
-                processed_observation = preprocess(observation, last_observation)
-                state = agent.run(state, action, reward, terminal, processed_observation)
-    else:  # Test mode
-        # env.monitor.start(ENV_NAME + '-test')
-        for _ in range(NUM_EPISODES_AT_TEST):
-            terminal = False
-            observation = env.reset()
-            for _ in range(random.randint(1, NO_OP_STEPS)):
-                last_observation = observation
-                observation, _, _, _ = env.step(0)  # Do nothing
-            state = agent.get_initial_state(observation, last_observation)
-            while not terminal:
-                last_observation = observation
-                action = agent.get_action_at_test(state)
-                observation, _, terminal, _ = env.step(action)
-                env.render()
-                processed_observation = preprocess(observation, last_observation)
-                state = np.append(state[1:, :, :], processed_observation, axis=0)
-# env.monitor.close()
-
-
-if __name__ == '__main__':
-    main()
+        ### 4. Log progress
+        episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()
+        if len(episode_rewards) > 0:
+            mean_episode_reward = np.mean(episode_rewards[-100:])
+        if len(episode_rewards) > 100:
+            best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
+        if t % LOG_EVERY_N_STEPS == 0 and model_initialized:
+            print("Timestep %d" % (t,))
+            print("mean reward (100 episodes) %f" % mean_episode_reward)
+            print("best mean reward %f" % best_mean_episode_reward)
+            print("episodes %d" % len(episode_rewards))
+            print("exploration %f" % exploration.value(t))
+            print("learning_rate %f" % optimizer_spec.lr_schedule.value(t))
+            sys.stdout.flush()
