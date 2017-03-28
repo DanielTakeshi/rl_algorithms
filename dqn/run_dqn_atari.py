@@ -123,12 +123,11 @@ def main():
     seed = 0 # Use a seed of zero (you may want to randomize the seed!)
     env = get_env(task, seed)
     session = get_session()
-
+    num_timesteps = 10000000 # Alternatively, use task.max_timesteps
     print(env)
     print("seed = {}".format(seed))
-    print("num_timesteps = {}\n".format(task.max_timesteps))
-
-    atari_learn(env, session, num_timesteps=task.max_timesteps)
+    print("num_timesteps = {}\n".format(num_timesteps))
+    atari_learn(env, session, num_timesteps)
 
 if __name__ == "__main__":
     main()

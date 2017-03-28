@@ -127,13 +127,6 @@ def learn(env,
     # Older versions of TensorFlow may require using "VARIABLES" instead of "GLOBAL_VARIABLES"
     ######
 
-    # The Bellman error. Scalar-valued so we can take gradients w.r.t. input. I
-    # _think_ this is the way we call it. The scope is for variable naming and
-    # to ensure we don't re-use them. I think next_q gets the next observation.
-    # Current Q-val uses act_t_ph target Q-val uses tf.maximum(). We will change
-    # the weights of the target network, but that doesn't happen here.  Note
-    # that q_func(...) returns something of shape (?,num_actions).
-
     # I don't know if this is right ... can't index easily since act_t_ph's
     # first dimension is unknown, we have to fill that in.
     current_q = tf.gather_nd(q_func(obs_t_float, num_actions, scope="q_func"), act_t_ph)
@@ -143,11 +136,10 @@ def learn(env,
     # this should be fine? The + and * are shorthands. DOUBLE CHECK ...
     target_val = rew_t_ph + (gamma * target_q) * tf.abs(1 - done_mask_ph)
 
-    total_error = tf.pow((target_val-current_q), 2)
+    total_error        = tf.reduce_mean( tf.pow((target_val-current_q),2) )
     q_func_vars        = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
     target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
 
-    # Some debugging ...
     print("obs_t_ph shape = {}".format(obs_t_ph.get_shape()))
     print("act_t_ph shape = {}".format(act_t_ph.get_shape()))
     print("target_q shape = {}".format(target_q.get_shape()))
@@ -161,7 +153,6 @@ def learn(env,
     for n in target_q_func_vars:
         print("{}".format(n.name))
     print("")
-    #sys.exit()
 
     ######
 
@@ -188,7 +179,7 @@ def learn(env,
     num_param_updates = 0
     mean_episode_reward      = -float('nan')
     best_mean_episode_reward = -float('inf')
-    last_obs = env.reset()
+    last_obs = env.reset() # A numpy structure with shape (height, width, 1).
     LOG_EVERY_N_STEPS = 10000
 
     for t in itertools.count():
@@ -225,11 +216,25 @@ def learn(env,
         # And remember that the first time you enter this loop, the model
         # may not yet have been initialized (but of course, the first step
         # might as well be random, since you haven't trained your net...)
-
         #####
-        if (t % 10000 == 0):
-            print("t = {}".format(t))        
-        # YOUR CODE HERE
+
+        # Note: this is for one trial. Don't worry about batch sizes here.
+        rb_index = replay_buffer.store_frame(last_obs)
+        phi = replay_buffer.encode_recent_observation()
+
+        if (np.random.rand() < exploration.value(t) or not model_initialized):
+            action = np.random.randint(num_actions)    
+        else:
+            # How do we handle different sizes for phi? Map it to obs_t_float?
+            # We need the TF version, right?
+            action = tf.argmax(q_func(phi, num_actions, scope="q_func"))
+
+        obs, reward, done, info = env.step(action)
+        replay_buffer.store_effect(rb_index, action, reward, done)
+
+        if done:
+            obs = env.reset()
+        last_obs = obs
 
         #####
 
@@ -278,9 +283,12 @@ def learn(env,
             # you should update every target_update_freq steps, and you may find the
             # variable num_param_updates useful for this (it was initialized to 0)
             #####
-            pass    
-            # YOUR CODE HERE
+            pass
 
+            if (t % target_update_freq):
+                model_initialized = True
+                session.run(update_target_fn)
+                num_param_updates += 1
             #####
 
         ### 4. Log progress
