@@ -126,8 +126,42 @@ def learn(env,
     # q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
     # Older versions of TensorFlow may require using "VARIABLES" instead of "GLOBAL_VARIABLES"
     ######
-    
-    # YOUR CODE HERE
+
+    # The Bellman error. Scalar-valued so we can take gradients w.r.t. input. I
+    # _think_ this is the way we call it. The scope is for variable naming and
+    # to ensure we don't re-use them. I think next_q gets the next observation.
+    # Current Q-val uses act_t_ph target Q-val uses tf.maximum(). We will change
+    # the weights of the target network, but that doesn't happen here.  Note
+    # that q_func(...) returns something of shape (?,num_actions).
+
+    # I don't know if this is right ... can't index easily since act_t_ph's
+    # first dimension is unknown, we have to fill that in.
+    current_q = tf.gather_nd(q_func(obs_t_float, num_actions, scope="q_func"), act_t_ph)
+    target_q  = tf.reduce_max(q_func(obs_tp1_float, num_actions, scope="target_q_func"), axis=1)
+
+    # ??? How to handle the mask? IF it's zero when it's not happening, then
+    # this should be fine? The + and * are shorthands. DOUBLE CHECK ...
+    target_val = rew_t_ph + (gamma * target_q) * tf.abs(1 - done_mask_ph)
+
+    total_error = tf.pow((target_val-current_q), 2)
+    q_func_vars        = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
+    target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
+
+    # Some debugging ...
+    print("obs_t_ph shape = {}".format(obs_t_ph.get_shape()))
+    print("act_t_ph shape = {}".format(act_t_ph.get_shape()))
+    print("target_q shape = {}".format(target_q.get_shape()))
+    print("current_q shape = {}".format(current_q.get_shape()))
+    print("target_val shape = {}".format(target_val.get_shape()))
+    print("total_error shape = {}".format(total_error.get_shape()))
+    print("\nq_func_vars:")
+    for n in q_func_vars:
+        print("{}".format(n.name))
+    print("\ntarget_q_func_vars:")
+    for n in target_q_func_vars:
+        print("{}".format(n.name))
+    print("")
+    #sys.exit()
 
     ######
 
@@ -193,7 +227,8 @@ def learn(env,
         # might as well be random, since you haven't trained your net...)
 
         #####
-        
+        if (t % 10000 == 0):
+            print("t = {}".format(t))        
         # YOUR CODE HERE
 
         #####
@@ -243,7 +278,7 @@ def learn(env,
             # you should update every target_update_freq steps, and you may find the
             # variable num_param_updates useful for this (it was initialized to 0)
             #####
-            
+            pass    
             # YOUR CODE HERE
 
             #####

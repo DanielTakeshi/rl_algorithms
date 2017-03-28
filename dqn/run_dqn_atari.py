@@ -104,16 +104,12 @@ def get_session():
 
 def get_env(task, seed):
     env_id = task.env_id
-
     env = gym.make(env_id)
-
     set_global_seeds(seed)
     env.seed(seed)
-
     expt_dir = '/tmp/hw3_vid_dir2/'
     env = wrappers.Monitor(env, osp.join(expt_dir, "gym"), force=True)
     env = wrap_deepmind(env)
-
     return env
 
 def main():
@@ -127,6 +123,11 @@ def main():
     seed = 0 # Use a seed of zero (you may want to randomize the seed!)
     env = get_env(task, seed)
     session = get_session()
+
+    print(env)
+    print("seed = {}".format(seed))
+    print("num_timesteps = {}\n".format(task.max_timesteps))
+
     atari_learn(env, session, num_timesteps=task.max_timesteps)
 
 if __name__ == "__main__":
