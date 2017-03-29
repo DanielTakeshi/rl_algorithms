@@ -109,7 +109,7 @@ def get_session():
     #session = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
     # Use this for limiting memory allocated for the GPU.
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.250)
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.500)
     session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
     print("AVAILABLE GPUS: ", get_available_gpus())

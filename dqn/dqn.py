@@ -211,7 +211,7 @@ def learn(env,
             current_phi = replay_buffer.encode_recent_observation()
             current_phi = np.expand_dims(current_phi, axis=0)
             action = np.argmax(np.squeeze( 
-                session.run(q_net, feed_dict={obs_t_ph: current_phi}) 
+                session.run(current_net, feed_dict={obs_t_ph: current_phi}) 
             ))
 
         obs, reward, done, info = env.step(action)
@@ -274,21 +274,8 @@ def learn(env,
                     obs_t_ph: obs_t_batch,
                     obs_tp1_ph: obs_tp1_batch,
                 })
-                model_inititalized = True
+                model_initialized = True
 
-            # I'd like to return the train error to see if it's decreasing.
-            # I do not think we need to have `total_error` here as input.
-            # See: https://www.tensorflow.org/get_started/mnist/mechanics
-            #_, total_err_val = session.run([train_fn, total_error],
-            #            feed_dict = {
-            #                obs_t_ph: obs_t_batch,
-            #                act_t_ph: act_batch,
-            #                rew_t_ph: rew_batch,
-            #                obs_tp1_ph: obs_tp1_batch,
-            #                done_mask_ph: done_mask,
-            #                learning_rate: optimizer_spec.lr_schedule.value(t)
-            #            }
-            #)
             session.run(train_fn, 
                         feed_dict = {
                             obs_t_ph: obs_t_batch,
@@ -309,6 +296,7 @@ def learn(env,
         ### 4. Log progress
         episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()
         if len(episode_rewards) > 0:
+            # This returns -inf if the agent hasn't faced 100 episodes yet.
             mean_episode_reward = np.mean(episode_rewards[-100:])
         if len(episode_rewards) > 100:
             best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
