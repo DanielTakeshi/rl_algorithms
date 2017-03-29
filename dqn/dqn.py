@@ -153,7 +153,6 @@ def learn(env,
     for n in target_q_func_vars:
         print("{}".format(n.name))
     print("")
-
     ######
 
     # construct optimization op (with gradient clipping)
@@ -235,7 +234,6 @@ def learn(env,
         if done:
             obs = env.reset()
         last_obs = obs
-
         #####
 
         # at this point, the environment should have been advanced one step (and
@@ -283,10 +281,33 @@ def learn(env,
             # you should update every target_update_freq steps, and you may find the
             # variable num_param_updates useful for this (it was initialized to 0)
             #####
-            pass
+            batch = replay_buffer.sample(batch_size)
+            obs_batch, act_batch, rew_batch, next_obs_batch, done_mask = batch
 
+            if (not model_initialized):
+                initialize_interdependent_variables(session, tf.global_variables(), {
+                    obs_t_ph: obs_t_batch,
+                    obs_tp1_ph: obs_tp1_batch,
+                })
+                model_inititalized = True # Maybe this is not right?
+
+            # Get error first, then train. Do we really need a feed like this?
+            # Is train_error computed since it's input to train_fn? Otherwise
+            # I'd need a second session.run and that doesn't seem logical.
+            session.run(train_fn,
+                        feed_dict = {
+                            obs_t_ph: obs_batch
+                            act_t_ph: act_batch
+                            rew_t_ph: rew_batch
+                            obs_tp1_ph: obs_batch
+                            done_mask_ph: done_mask
+                            learning_rate: optimizer_spec.lr_schedule.value(t)
+                        }
+            )
+
+            # Actually, probably be better to have t % num_param_updates.
             if (t % target_update_freq):
-                model_initialized = True
+                model_initialized = True # Be careful about this logic!
                 session.run(update_target_fn)
                 num_param_updates += 1
             #####
