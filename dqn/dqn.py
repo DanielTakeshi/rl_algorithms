@@ -127,24 +127,21 @@ def learn(env,
     # Older versions of TensorFlow may require using "VARIABLES" instead of "GLOBAL_VARIABLES"
     ######
 
-    # I don't know if this is right ... can't index easily since act_t_ph's
-    # first dimension is unknown, we have to fill that in.
-    current_q = tf.gather_nd(q_func(obs_t_float, num_actions, scope="q_func"), act_t_ph)
+    act_one_hot = tf.one_hot(act_t_ph, num_actions, on_value=1.0, off_value=0.0)
+    current_q = tf.reduce_sum(q_func(obs_t_float, num_actions, scope="q_func") * act_one_hot, axis=1)
     target_q  = tf.reduce_max(q_func(obs_tp1_float, num_actions, scope="target_q_func"), axis=1)
 
-    # ??? How to handle the mask? IF it's zero when it's not happening, then
-    # this should be fine? The + and * are shorthands. DOUBLE CHECK ...
     target_val = rew_t_ph + (gamma * target_q) * tf.abs(1 - done_mask_ph)
-
     total_error        = tf.reduce_mean( tf.pow((target_val-current_q),2) )
     q_func_vars        = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
     target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
 
-    # Adding here ...
+    # Adding this to handle the single-state Q(s,a) value.
     pick_action = tf.argmax(q_func(obs_t_float, num_actions, scope="q_func", reuse=True), axis=1)
 
     print("obs_t_ph shape = {}".format(obs_t_ph.get_shape()))
     print("act_t_ph shape = {}".format(act_t_ph.get_shape()))
+    print("act_one_hot shape = {}".format(act_one_hot.get_shape()))
     print("target_q shape = {}".format(target_q.get_shape()))
     print("current_q shape = {}".format(current_q.get_shape()))
     print("target_val shape = {}".format(target_val.get_shape()))
@@ -236,7 +233,6 @@ def learn(env,
         if done:
             obs = env.reset()
         last_obs = obs
-        print("took action={}, got reward={}".format(action,reward))
         #####
 
         # at this point, the environment should have been advanced one step (and
