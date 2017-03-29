@@ -127,32 +127,17 @@ def learn(env,
     # Older versions of TensorFlow may require using "VARIABLES" instead of "GLOBAL_VARIABLES"
     ######
 
+    # Building the networks. Have current_net so I can also call Q-values.
     act_one_hot = tf.one_hot(act_t_ph, num_actions, on_value=1.0, off_value=0.0)
-    current_q = tf.reduce_sum(q_func(obs_t_float, num_actions, scope="q_func") * act_one_hot, axis=1)
-    target_q  = tf.reduce_max(q_func(obs_tp1_float, num_actions, scope="target_q_func"), axis=1)
+    current_net = q_func(obs_t_float, num_actions, scope="q_func")
+    current_q = tf.reduce_sum(current_net * act_one_hot, axis=1)
+    target_q = tf.reduce_max(q_func(obs_tp1_float, num_actions, scope="target_q_func"), axis=1)
 
-    target_val = rew_t_ph + (gamma * target_q) * tf.abs(1 - done_mask_ph)
-    total_error        = tf.reduce_mean( tf.pow((target_val-current_q),2) )
-    q_func_vars        = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
+    # Now form the loss function and collect variables.
+    target_val = rew_t_ph + (gamma * target_q) * (1 - done_mask_ph)
+    total_error = tf.nn.l2_loss(target_val-current_q) / batch_size
+    q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
     target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
-
-    # Adding this to handle the single-state Q(s,a) value.
-    pick_action = tf.argmax(q_func(obs_t_float, num_actions, scope="q_func", reuse=True), axis=1)
-
-    print("obs_t_ph shape = {}".format(obs_t_ph.get_shape()))
-    print("act_t_ph shape = {}".format(act_t_ph.get_shape()))
-    print("act_one_hot shape = {}".format(act_one_hot.get_shape()))
-    print("target_q shape = {}".format(target_q.get_shape()))
-    print("current_q shape = {}".format(current_q.get_shape()))
-    print("target_val shape = {}".format(target_val.get_shape()))
-    print("total_error shape = {}".format(total_error.get_shape()))
-    print("\nq_func_vars:")
-    for n in q_func_vars:
-        print("{}".format(n.name))
-    print("\ntarget_q_func_vars:")
-    for n in target_q_func_vars:
-        print("{}".format(n.name))
-    print("")
     ######
 
     # construct optimization op (with gradient clipping)
@@ -179,7 +164,7 @@ def learn(env,
     mean_episode_reward      = -float('nan')
     best_mean_episode_reward = -float('inf')
     last_obs = env.reset() # A numpy structure with shape (height, width, 1).
-    LOG_EVERY_N_STEPS = 10000
+    LOG_EVERY_N_STEPS = 1000
 
     for t in itertools.count():
         ### 1. Check stopping criterion
@@ -223,10 +208,11 @@ def learn(env,
         if (np.random.rand() < exploration.value(t) or not model_initialized):
             action = np.random.randint(num_actions)    
         else:
-            # I think scope="q_func" and reuse=True means we're using the right net.
             current_phi = replay_buffer.encode_recent_observation()
             current_phi = np.expand_dims(current_phi, axis=0)
-            action = session.run(pick_action, feed_dict={obs_t_ph: current_phi})
+            action = np.argmax(np.squeeze( 
+                session.run(q_net, feed_dict={obs_t_ph: current_phi}) 
+            ))
 
         obs, reward, done, info = env.step(action)
         replay_buffer.store_effect(rb_index, action, reward, done)
@@ -293,7 +279,17 @@ def learn(env,
             # I'd like to return the train error to see if it's decreasing.
             # I do not think we need to have `total_error` here as input.
             # See: https://www.tensorflow.org/get_started/mnist/mechanics
-            _, total_err_val = session.run([train_fn, total_error],
+            #_, total_err_val = session.run([train_fn, total_error],
+            #            feed_dict = {
+            #                obs_t_ph: obs_t_batch,
+            #                act_t_ph: act_batch,
+            #                rew_t_ph: rew_batch,
+            #                obs_tp1_ph: obs_tp1_batch,
+            #                done_mask_ph: done_mask,
+            #                learning_rate: optimizer_spec.lr_schedule.value(t)
+            #            }
+            #)
+            session.run(train_fn, 
                         feed_dict = {
                             obs_t_ph: obs_t_batch,
                             act_t_ph: act_batch,

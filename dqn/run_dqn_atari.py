@@ -101,7 +101,17 @@ def get_session():
     tf_config = tf.ConfigProto(
         inter_op_parallelism_threads=1,
         intra_op_parallelism_threads=1)
-    session = tf.Session(config=tf_config)
+
+    # This was the default provided in the starter code.
+    #session = tf.Session(config=tf_config)
+
+    # Use this if I want to see what is on the GPU.
+    #session = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+
+    # Use this for limiting memory allocated for the GPU.
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.250)
+    session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+
     print("AVAILABLE GPUS: ", get_available_gpus())
     return session
 
@@ -127,9 +137,9 @@ def main():
     env = get_env(task, seed)
     session = get_session()
     num_timesteps = 10000000 # Alternatively, use task.max_timesteps
-    print(env)
-    print("seed = {}".format(seed))
-    print("num_timesteps = {}\n".format(num_timesteps))
+    #print(env)
+    #print("seed = {}".format(seed))
+    #print("num_timesteps = {}\n".format(num_timesteps))
     atari_learn(env, session, num_timesteps)
 
 if __name__ == "__main__":
