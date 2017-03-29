@@ -140,6 +140,9 @@ def learn(env,
     q_func_vars        = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
     target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
 
+    # Adding here ...
+    pick_action = tf.argmax(q_func(obs_t_float, num_actions, scope="q_func", reuse=True), axis=1)
+
     print("obs_t_ph shape = {}".format(obs_t_ph.get_shape()))
     print("act_t_ph shape = {}".format(act_t_ph.get_shape()))
     print("target_q shape = {}".format(target_q.get_shape()))
@@ -217,23 +220,23 @@ def learn(env,
         # might as well be random, since you haven't trained your net...)
         #####
 
-        # Note: this is for one trial. Don't worry about batch sizes here.
+        # This section is for one trial. Don't worry about batch sizes here.
         rb_index = replay_buffer.store_frame(last_obs)
-        phi = replay_buffer.encode_recent_observation()
 
         if (np.random.rand() < exploration.value(t) or not model_initialized):
             action = np.random.randint(num_actions)    
         else:
-            # How do we handle different sizes for phi? Map it to obs_t_float?
-            # We need the TF version, right?
-            action = tf.argmax(q_func(phi, num_actions, scope="q_func"))
+            # I think scope="q_func" and reuse=True means we're using the right net.
+            current_phi = replay_buffer.encode_recent_observation()
+            current_phi = np.expand_dims(current_phi, axis=0)
+            action = session.run(pick_action, feed_dict={obs_t_ph: current_phi})
 
         obs, reward, done, info = env.step(action)
         replay_buffer.store_effect(rb_index, action, reward, done)
-
         if done:
             obs = env.reset()
         last_obs = obs
+        print("took action={}, got reward={}".format(action,reward))
         #####
 
         # at this point, the environment should have been advanced one step (and
@@ -281,35 +284,34 @@ def learn(env,
             # you should update every target_update_freq steps, and you may find the
             # variable num_param_updates useful for this (it was initialized to 0)
             #####
-            batch = replay_buffer.sample(batch_size)
-            obs_batch, act_batch, rew_batch, next_obs_batch, done_mask = batch
+            obs_t_batch, act_batch, rew_batch, obs_tp1_batch, done_mask = \
+                    replay_buffer.sample(batch_size)
 
             if (not model_initialized):
                 initialize_interdependent_variables(session, tf.global_variables(), {
                     obs_t_ph: obs_t_batch,
                     obs_tp1_ph: obs_tp1_batch,
                 })
-                model_inititalized = True # Maybe this is not right?
+                model_inititalized = True
 
-            # Get error first, then train. Do we really need a feed like this?
-            # Is train_error computed since it's input to train_fn? Otherwise
-            # I'd need a second session.run and that doesn't seem logical.
-            session.run(train_fn,
+            # I'd like to return the train error to see if it's decreasing.
+            # I do not think we need to have `total_error` here as input.
+            # See: https://www.tensorflow.org/get_started/mnist/mechanics
+            _, total_err_val = session.run([train_fn, total_error],
                         feed_dict = {
-                            obs_t_ph: obs_batch
-                            act_t_ph: act_batch
-                            rew_t_ph: rew_batch
-                            obs_tp1_ph: obs_batch
-                            done_mask_ph: done_mask
+                            obs_t_ph: obs_t_batch,
+                            act_t_ph: act_batch,
+                            rew_t_ph: rew_batch,
+                            obs_tp1_ph: obs_tp1_batch,
+                            done_mask_ph: done_mask,
                             learning_rate: optimizer_spec.lr_schedule.value(t)
                         }
             )
 
-            # Actually, probably be better to have t % num_param_updates.
-            if (t % target_update_freq):
-                model_initialized = True # Be careful about this logic!
+            # After some number of xp-replay updates, update the target network.
+            if (num_param_updates % target_update_freq):
                 session.run(update_target_fn)
-                num_param_updates += 1
+            num_param_updates += 1
             #####
 
         ### 4. Log progress

@@ -78,10 +78,12 @@ def atari_learn(env,
     )
     env.close()
 
+
 def get_available_gpus():
     from tensorflow.python.client import device_lib
     local_device_protos = device_lib.list_local_devices()
     return [x.physical_device_desc for x in local_device_protos if x.device_type == 'GPU']
+
 
 def set_global_seeds(i):
     try:
@@ -93,6 +95,7 @@ def set_global_seeds(i):
     np.random.seed(i)
     random.seed(i)
 
+
 def get_session():
     tf.reset_default_graph()
     tf_config = tf.ConfigProto(
@@ -101,6 +104,7 @@ def get_session():
     session = tf.Session(config=tf_config)
     print("AVAILABLE GPUS: ", get_available_gpus())
     return session
+
 
 def get_env(task, seed):
     env_id = task.env_id
@@ -112,11 +116,10 @@ def get_env(task, seed):
     env = wrap_deepmind(env)
     return env
 
-def main():
-    # Get Atari games.
-    benchmark = gym.benchmark_spec('Atari40M')
 
-    # Change the index to select a different game.
+def main():
+    # Get Atari games and change index if a new game is desired..
+    benchmark = gym.benchmark_spec('Atari40M')
     task = benchmark.tasks[3]
 
     # Run training
