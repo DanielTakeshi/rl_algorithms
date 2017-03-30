@@ -112,7 +112,7 @@ def get_session():
     #session = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
     # Use this for limiting memory allocated for the GPU.
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.500)
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
     session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
     print("AVAILABLE GPUS: ", get_available_gpus())
@@ -141,16 +141,16 @@ def main():
     benchmark = gym.benchmark_spec('Atari40M')
     task = benchmark.tasks[3]
 
-
     # Run training. Should change the seed if possible!
     # Also, the actual # of iterations run is num_timesteps / 4.
     seed = args.seed
-    print("seed={}".format(seed))
     env = get_env(task, seed)
     session = get_session()
+    num_timesteps = 32000000 # or task.max_timesteps
+    print("\nseed={}, num_timesteps={}\n".format(seed, num_timesteps))
     atari_learn(env, 
                 session, 
-                num_timesteps=task.max_timesteps,
+                num_timesteps=num_timesteps,
                 log_file=args.log)
 
 if __name__ == "__main__":

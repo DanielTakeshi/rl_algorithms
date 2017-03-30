@@ -321,9 +321,9 @@ def learn(env,
             print("learning_rate: {:.5f}".format(optimizer_spec.lr_schedule.value(t)))
             print("elapsed time: {:.1f} seconds".format((time.time()-t_start)))
             sys.stdout.flush()
-
-            scores_for_log.append(
-                (t, mean_episode_reward, best_mean_episode_reward)
-            )
+            scores_for_log.append((t, 
+                                   mean_episode_reward, 
+                                   best_mean_episode_reward,
+                                   current_episode_reward))
             with open('./log/'+log_file,'wb') as f:
                 pickle.dump(scores_for_log, f)
