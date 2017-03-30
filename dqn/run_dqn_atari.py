@@ -132,14 +132,14 @@ def main():
     benchmark = gym.benchmark_spec('Atari40M')
     task = benchmark.tasks[3]
 
-    # Run training
-    seed = 0 # Use a seed of zero (you may want to randomize the seed!)
+    # Run training. Should change the seed if possible!
+    # Also, the actual # of iterations run is num_timesteps / 4.
+    seed = 0
     env = get_env(task, seed)
     session = get_session()
-    num_timesteps = 10000000 # Alternatively, use task.max_timesteps
-    #print(env)
-    #print("seed = {}".format(seed))
-    #print("num_timesteps = {}\n".format(num_timesteps))
+    num_timesteps = 40000000 # Alternatively, use task.max_timesteps
+    print("\nSome useful information:\nenv = {}\nseed = {}".format(env,seed))
+    print("num_iterations = {}\n".format(num_timesteps/4))
     atari_learn(env, session, num_timesteps)
 
 if __name__ == "__main__":
