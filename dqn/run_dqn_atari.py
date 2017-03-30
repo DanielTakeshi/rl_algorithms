@@ -6,6 +6,7 @@ import random
 import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
+import argparse
 
 import dqn
 from dqn_utils import *
@@ -30,7 +31,8 @@ def atari_model(img_in, num_actions, scope, reuse=False):
 
 def atari_learn(env,
                 session,
-                num_timesteps):
+                num_timesteps,
+                log_file = './log/rewards.pkl'):
     # This is just a rough estimate
     num_iterations = float(num_timesteps) / 4.0
 
@@ -74,7 +76,8 @@ def atari_learn(env,
         learning_freq=4,
         frame_history_len=4,
         target_update_freq=10000,
-        grad_norm_clipping=10
+        grad_norm_clipping=10,
+        log_file=log_file
     )
     env.close()
 
@@ -128,19 +131,27 @@ def get_env(task, seed):
 
 
 def main():
+    # Get some arguments here.
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--log', type=str, default='rewards.pkl')
+    parser.add_argument('--seed', type=int, default=0)
+    args = parser.parse_args()
+
     # Get Atari games and change index if a new game is desired..
     benchmark = gym.benchmark_spec('Atari40M')
     task = benchmark.tasks[3]
 
+
     # Run training. Should change the seed if possible!
     # Also, the actual # of iterations run is num_timesteps / 4.
-    seed = 0
+    seed = args.seed
+    print("seed={}".format(seed))
     env = get_env(task, seed)
     session = get_session()
-    num_timesteps = 40000000 # Alternatively, use task.max_timesteps
-    print("\nSome useful information:\nenv = {}\nseed = {}".format(env,seed))
-    print("num_iterations = {}\n".format(num_timesteps/4))
-    atari_learn(env, session, num_timesteps)
+    atari_learn(env, 
+                session, 
+                num_timesteps=task.max_timesteps,
+                log_file=args.log)
 
 if __name__ == "__main__":
     main()

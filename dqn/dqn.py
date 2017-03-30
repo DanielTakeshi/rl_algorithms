@@ -1,4 +1,6 @@
 import sys
+import time
+import pickle
 import gym.spaces
 import itertools
 import numpy as np
@@ -23,7 +25,8 @@ def learn(env,
           learning_freq=4,
           frame_history_len=4,
           target_update_freq=10000,
-          grad_norm_clipping=10):
+          grad_norm_clipping=10,
+          log_file='./log/rewards.pkl'):
     """Run Deep Q-learning algorithm.
 
     You can specify your own convnet using q_func.
@@ -73,6 +76,8 @@ def learn(env,
         each update to the target Q network
     grad_norm_clipping: float or None
         If not None gradients' norms are clipped to this value.
+    log_file: string
+        Indicates where to save the resulting scores, for plotting later.
     """
     assert type(env.observation_space) == gym.spaces.Box
     assert type(env.action_space)      == gym.spaces.Discrete
@@ -159,12 +164,14 @@ def learn(env,
     ###############
     # RUN ENV     #
     ###############
+    scores_for_log = []
     model_initialized = False
     num_param_updates = 0
     mean_episode_reward      = -float('nan')
     best_mean_episode_reward = -float('inf')
     last_obs = env.reset() # A numpy structure with shape (height, width, 1).
     LOG_EVERY_N_STEPS = 10000
+    t_start = time.time()
 
     for t in itertools.count():
         ### 1. Check stopping criterion
@@ -229,7 +236,7 @@ def learn(env,
         # note that this is only done if the replay buffer contains enough samples
         # for us to learn something useful -- until then, the model will not be
         # initialized and random actions should be taken
-        if (t > learning_starts and
+        if (t >= learning_starts and
                 t % learning_freq == 0 and
                 replay_buffer.can_sample(batch_size)):
             # Here, you should perform training. Training consists of four steps:
@@ -293,18 +300,30 @@ def learn(env,
             num_param_updates += 1
             #####
 
-        ### 4. Log progress
+        ### 4. Log progress. 
         episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()
         if len(episode_rewards) > 0:
-            # This returns -inf if the agent hasn't faced 100 episodes yet.
             mean_episode_reward = np.mean(episode_rewards[-100:])
         if len(episode_rewards) > 100:
             best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
-        if t % LOG_EVERY_N_STEPS == 0 and model_initialized:
-            print("Timestep %d" % (t,))
-            print("mean reward (100 episodes) %f" % mean_episode_reward)
-            print("best mean reward %f" % best_mean_episode_reward)
-            print("episodes %d" % len(episode_rewards))
-            print("exploration %f" % exploration.value(t))
-            print("learning_rate %f" % optimizer_spec.lr_schedule.value(t))
+
+        # Report results, write to file. If case handles very last iteration.
+        if ((t % LOG_EVERY_N_STEPS == 0 and model_initialized) or
+            (stopping_criterion is not None and stopping_criterion(env,t+1))):
+
+            current_episode_reward = episode_rewards[-1]
+            print("Timestep: {}".format(t))
+            print("mean reward (100 episodes): {:.4f}".format(mean_episode_reward))
+            print("best mean reward: {:.4f}".format(best_mean_episode_reward))
+            print("current episode reward: {:.4f}".format(current_episode_reward))
+            print("episodes: {}".format(len(episode_rewards)))
+            print("exploration: {:.5f}".format(exploration.value(t)))
+            print("learning_rate: {:.5f}".format(optimizer_spec.lr_schedule.value(t)))
+            print("elapsed time: {:.1f} seconds".format((time.time()-t_start)))
             sys.stdout.flush()
+
+            scores_for_log.append(
+                (t, mean_episode_reward, best_mean_episode_reward)
+            )
+            with open('./log/'+log_file,'wb') as f:
+                pickle.dump(scores_for_log, f)

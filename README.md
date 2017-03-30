@@ -5,7 +5,8 @@ algorithms, because I'm sick of reading them but not really *getting* them.
 Hence, hopefully this repository will help me understand them better. I will
 also implement various supporting code as needed, such as for simple custom
 scenarios like GridWorld. Or I can use OpenAI gym. Click on the links to get to
-the appropriate repositories.
+the appropriate algorithms. Each sub-directory will have its own READMEs with
+results there, along with usage instructions.
 
 Here are the algorithms which I already know quite well (not in this repository):
 
