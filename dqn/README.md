@@ -1,7 +1,7 @@
 # Deep Q-Networks
 
-This is not entirely my code. It originally came from UC Berkeley's Deep
-Reinforcement Learning class.  These are their comments:
+The starter code is from UC Berkeley's Deep Reinforcement Learning class.  These
+are their comments:
 
 > See http://rll.berkeley.edu/deeprlcourse/docs/hw3.pdf for instructions
 > 
@@ -18,8 +18,8 @@ First, here is example usage (slashes are only for readability here):
 python run_dqn_atari.py --game Pong --seed 1 --num_timesteps 30000000 | tee logs_text/Pong_s001.text
 ```
 
-The statistics for plotting data will be stored in the `rewards.pkl` file inside
-a `log_pkls` directory. I also like to save the stdout to inspect them for later.
+With these settings, the statistics for plotting data will be stored in the
+`log_pkls/Pong_s001.pkl` file.
 
 Here are some of the `task` stuff in the code, ordered by index (i.e. 0, 1,
 etc.).
@@ -35,17 +35,49 @@ Task<env_id=QbertNoFrameskip-v3 trials=2 max_timesteps=40000000 max_seconds=None
 The default for these is 40 million episodes, but that's not always needed for
 the easier games.
 
+The `num_timesteps` parameter corresponds to the number of steps in the
+"underlying" environment, *not* the "wrapped" environment. See the stopping
+criterion:
+
+```
+def stopping_criterion(env, t):
+    # notice that here t is the number of steps of the wrapped env,
+    # which is different from the number of steps in the underlying env
+    return get_wrapper_by_name(env, "Monitor").get_total_steps() >= num_timesteps
+```
+
+The `t` here is what I think of as "the number of steps." It's confusing, I
+know. There might be a better way to handle this. From now on, when I say
+"steps", it refers to the `t`-like number, and *not* the `num_timesteps`
+parameter.
+
 # Results
+
+Notes:
+
+- Timing results are based on running with an NVIDIA Titan X with Pascal GPU.
+- Scores per Episode indicate scores for every episode.
+- Scores per Timestep indicate the score of the current episode at a given
+  timestep; each episode requires some number of timesteps for the agent to
+  complete it. Theres' a lot of them, so I take every 10,000.
+- Blocks mean taking an interval of some size (100) and taking the mean.
 
 ## Pong
 
-Number of time steps I used: 32 million, resulting in roughly 7.5 million
-"game steps." This is *not* the number of episodes ... sorry, it's confusing.
-This took about 9.5 hours.  The results look good. I didn't record this with the
-per-episode rewards, though.
+- `num_timesteps`: 32 million
+- Training steps: about 7.5 million
+- Time: about 9.5 hours.
 
-![pong](figures/pong.png?raw=true)
+![pong](figures/Pong.png?raw=true)
 
 ## Breakout
 
-In progress ...
+- `num_timesteps`: 24 million
+- Training steps: about 5.7 million
+- Episodes: about 10000.
+- Time: about 9.5 hours.
+
+Yeah, I have *no idea* why the performance just dropped like that ... let me run
+again with a different seed.
+
+![breakout](figures/Breakout.png?raw=true)
