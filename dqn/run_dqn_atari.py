@@ -32,7 +32,7 @@ def atari_model(img_in, num_actions, scope, reuse=False):
 def atari_learn(env,
                 session,
                 num_timesteps,
-                log_file = './log/rewards.pkl'):
+                log_file = './logs/rewards.pkl'):
     # This is just a rough estimate
     num_iterations = float(num_timesteps) / 4.0
 

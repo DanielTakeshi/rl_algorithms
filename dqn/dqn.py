@@ -26,7 +26,7 @@ def learn(env,
           frame_history_len=4,
           target_update_freq=10000,
           grad_norm_clipping=10,
-          log_file='./log/rewards.pkl'):
+          log_file='./logs/rewards.pkl'):
     """Run Deep Q-learning algorithm.
 
     You can specify your own convnet using q_func.
@@ -236,7 +236,7 @@ def learn(env,
         # note that this is only done if the replay buffer contains enough samples
         # for us to learn something useful -- until then, the model will not be
         # initialized and random actions should be taken
-        if (t >= learning_starts and
+        if (t > learning_starts and
                 t % learning_freq == 0 and
                 replay_buffer.can_sample(batch_size)):
             # Here, you should perform training. Training consists of four steps:
@@ -312,7 +312,7 @@ def learn(env,
             (stopping_criterion is not None and stopping_criterion(env,t+1))):
 
             current_episode_reward = episode_rewards[-1]
-            print("Timestep: {}".format(t))
+            print("\nTimestep: {}".format(t))
             print("mean reward (100 episodes): {:.4f}".format(mean_episode_reward))
             print("best mean reward: {:.4f}".format(best_mean_episode_reward))
             print("current episode reward: {:.4f}".format(current_episode_reward))
@@ -325,5 +325,5 @@ def learn(env,
                                    mean_episode_reward, 
                                    best_mean_episode_reward,
                                    current_episode_reward))
-            with open('./log/'+log_file,'wb') as f:
+            with open('./logs/'+log_file,'wb') as f:
                 pickle.dump(scores_for_log, f)

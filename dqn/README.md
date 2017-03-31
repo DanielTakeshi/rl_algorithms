@@ -15,11 +15,11 @@ The rest of this README contains my comments and results.
 First, here is the usage:
 
 ```
-python run_dqn_atari.py --seed 0 --log rewards.pkl
+python run_dqn_atari.py --seed 0 --log rewards.pkl | tee text_log.txt
 ```
 
 The statistics for plotting data will be stored in the `rewards.pkl` file inside
-a `log` directory.
+a `log` directory. I also like to save the stdout to inspect them for later.
 
 # Results
 
