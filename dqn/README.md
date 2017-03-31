@@ -75,7 +75,7 @@ Notes:
 - `num_timesteps`: 24 million
 - Training steps: about 5.7 million
 - Episodes: about 10000.
-- Time: about 9.5 hours.
+- Time: about 6.9 hours.
 
 Yeah, I have *no idea* why the performance just dropped like that ... let me run
 again with a different seed.
