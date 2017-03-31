@@ -132,27 +132,26 @@ def get_env(task, seed):
 
 
 def main():
+    # Get Atari games and change index if a new game is desired..
+    benchmark = gym.benchmark_spec('Atari40M')
+    task = benchmark.tasks[1]
+
     # Get some arguments here.
     parser = argparse.ArgumentParser()
     parser.add_argument('--log', type=str, default='rewards.pkl')
     parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--num_timesteps', type=int, default=task.max_timesteps)
     args = parser.parse_args()
-
-    # Get Atari games and change index if a new game is desired..
-    benchmark = gym.benchmark_spec('Atari40M')
-    task = benchmark.tasks[1]
 
     # Run training. Should change the seed if possible!
     # Also, the actual # of iterations run is _roughly_ num_timesteps/4.
     seed = args.seed
     env = get_env(task, seed)
     session = get_session()
-    num_timesteps = 30000000
-    print("\nseed={}, num_timesteps={}".format(seed,num_timesteps))
-    print("task={}\n".format(task))
+    print("task = {}".format(task))
     atari_learn(env, 
                 session, 
-                num_timesteps=num_timesteps,
+                num_timesteps=args.num_timesteps,
                 log_file=args.log)
 
 if __name__ == "__main__":

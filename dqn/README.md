@@ -12,10 +12,10 @@ The rest of this README contains my comments and results.
 
 # Usage, Games, etc.
 
-First, here is the usage:
+First, here is example usage:
 
 ```
-python run_dqn_atari.py --seed 0 --log rewards.pkl | tee text_log.txt
+python run_dqn_atari.py --seed 0 --log breakout_s000.pkl --num_timesteps 24000000 | tee text_logs/breakout_seed000.text
 ```
 
 The statistics for plotting data will be stored in the `rewards.pkl` file inside
@@ -48,3 +48,7 @@ Number of time steps I used: 32 million, resulting in roughly 7.5 million
 The results look good.
 
 ![pong](figures/pong.png?raw=true)
+
+## Breakout
+
+In progress ...
