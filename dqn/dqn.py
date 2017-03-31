@@ -327,3 +327,4 @@ def learn(env,
                                    current_episode_reward))
             with open('./logs/'+log_file,'wb') as f:
                 pickle.dump(scores_for_log, f)
+                pickle.dump(episode_rewards, f)

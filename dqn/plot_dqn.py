@@ -36,7 +36,7 @@ axarr[1].set_title("Pong Scores (Blocks of 100)", fontsize=title_size)
 axarr[1].plot(pong_t, pong_mean, c='red', lw=lw, label='Seed 0')
 
 for i in range(2):
-    axarr[i].set_xlabel("Episodes (in Millions)", fontsize=axis_size)
+    axarr[i].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
     axarr[i].set_ylabel("Rewards", fontsize=axis_size)
     axarr[i].set_xlim([0,max(pong_t)])
     axarr[i].set_ylim([-22,22])

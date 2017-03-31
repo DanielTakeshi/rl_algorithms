@@ -7,6 +7,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
 import argparse
+import sys
 
 import dqn
 from dqn_utils import *
@@ -139,15 +140,16 @@ def main():
 
     # Get Atari games and change index if a new game is desired..
     benchmark = gym.benchmark_spec('Atari40M')
-    task = benchmark.tasks[3]
+    task = benchmark.tasks[1]
 
     # Run training. Should change the seed if possible!
-    # Also, the actual # of iterations run is num_timesteps / 4.
+    # Also, the actual # of iterations run is _roughly_ num_timesteps/4.
     seed = args.seed
     env = get_env(task, seed)
     session = get_session()
-    num_timesteps = 32000000 # or task.max_timesteps
-    print("\nseed={}, num_timesteps={}\n".format(seed, num_timesteps))
+    num_timesteps = 30000000
+    print("\nseed={}, num_timesteps={}".format(seed,num_timesteps))
+    print("task={}\n".format(task))
     atari_learn(env, 
                 session, 
                 num_timesteps=num_timesteps,
