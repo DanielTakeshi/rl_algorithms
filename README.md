@@ -8,17 +8,11 @@ scenarios like GridWorld. Or I can use OpenAI gym. Click on the links to get to
 the appropriate algorithms. Each sub-directory will have its own READMEs with
 results there, along with usage instructions.
 
-Here are the algorithms which I already know quite well (not in this repository):
-
-- Value Iteration and Policy Iteration
-- SARSA, tabular version
-- Q-Learning with linear function approximation (implemented in closed-source code, sorry)
-
 Here are the algorithms currently implemented or in progress:
 
 - [Q-Learning, tabular version](https://github.com/DanielTakeshi/rl_algorithms/tree/master/q_learning) (should be correct)
-- [G-Learning](https://github.com/DanielTakeshi/rl_algorithms/tree/master/g_learning) (currently verifying)
-- [Deep-Q Networks](https://github.com/DanielTakeshi/rl_algorithms/tree/master/dqn), vanilla version, currently in progress with tensorflow. I also understood these via [spragnur's deep_q_rl code](https://github.com/spragunr/deep_q_rl) and I tested using [my personal fork](https://github.com/DanielTakeshi/deep_q_rl).
+- [G-Learning](https://github.com/DanielTakeshi/rl_algorithms/tree/master/g_learning) (WIP)
+- [Deep-Q Networks](https://github.com/DanielTakeshi/rl_algorithms/tree/master/dqn) (should be correct)
 
 # GPU and TensorFlow
 
