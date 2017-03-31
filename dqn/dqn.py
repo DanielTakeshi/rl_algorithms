@@ -26,7 +26,7 @@ def learn(env,
           frame_history_len=4,
           target_update_freq=10000,
           grad_norm_clipping=10,
-          log_file='./logs/rewards.pkl'):
+          log_file='./logs_pkls/rewards.pkl'):
     """Run Deep Q-learning algorithm.
 
     You can specify your own convnet using q_func.
@@ -319,12 +319,14 @@ def learn(env,
             print("episodes: {}".format(len(episode_rewards)))
             print("exploration: {:.5f}".format(exploration.value(t)))
             print("learning_rate: {:.5f}".format(optimizer_spec.lr_schedule.value(t)))
-            print("elapsed time: {:.1f} seconds".format((time.time()-t_start)))
+            seconds = (time.time()-t_start)
+            hours = (time.time()-t_start) / (60*60)
+            print("elapsed time: {:.1f} seconds, {:.2f} hours".format(seconds,hours))
             sys.stdout.flush()
             scores_for_log.append((t, 
                                    mean_episode_reward, 
                                    best_mean_episode_reward,
                                    current_episode_reward))
-            with open('./logs/'+log_file,'wb') as f:
+            with open('./logs_pkls/'+log_file,'wb') as f:
                 pickle.dump(scores_for_log, f)
                 pickle.dump(episode_rewards, f)

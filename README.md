@@ -26,7 +26,7 @@ Compiling from source means I can get faster CPU instructions. This requires
 bazel build -c opt --copt=-mavx --copt=-mavx2 --copt=-mfma --copt=-mfpmath=both --copt=-msse4.2 --config=opt --config=cuda //tensorflow/tools/pip_package:build_pip_package
 ```
 
-This resulted in ton of error messages but I ended up with:
+This resulted in ton of warning messages but I ended up with:
 
 ```
 Target //tensorflow/tools/pip_package:build_pip_package up-to-date:
