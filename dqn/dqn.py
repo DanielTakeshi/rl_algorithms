@@ -321,7 +321,7 @@ def learn(env,
             print("learning_rate: {:.5f}".format(optimizer_spec.lr_schedule.value(t)))
             seconds = (time.time()-t_start)
             hours = (time.time()-t_start) / (60*60)
-            print("elapsed time: {:.1f} seconds, {:.2f} hours".format(seconds,hours))
+            print("elapsed time: {:.1f} seconds ({:.2f} hours)".format(seconds,hours))
             sys.stdout.flush()
             scores_for_log.append((t, 
                                    mean_episode_reward, 

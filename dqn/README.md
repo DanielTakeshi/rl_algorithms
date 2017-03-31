@@ -15,14 +15,14 @@ The rest of this README contains my comments and results.
 First, here is example usage (slashes are only for readability here):
 
 ```
-python run_dqn_atari.py --seed 0 --log breakout_s000.pkl \
-    --num_timesteps 24000000 | tee logs_text/breakout_seed000.text
+python run_dqn_atari.py --game Pong --seed 1 --num_timesteps 30000000 | tee logs_text/Pong_s001.text
 ```
 
 The statistics for plotting data will be stored in the `rewards.pkl` file inside
 a `log_pkls` directory. I also like to save the stdout to inspect them for later.
 
-Here's the `task` stuff in the code, ordered by index (i.e. 0, 1, etc.).
+Here are some of the `task` stuff in the code, ordered by index (i.e. 0, 1,
+etc.).
 
 ```
 Task<env_id=BeamRiderNoFrameskip-v3 trials=2 max_timesteps=40000000 max_seconds=None reward_floor=363.9 reward_ceiling=60000.0>
@@ -34,10 +34,6 @@ Task<env_id=QbertNoFrameskip-v3 trials=2 max_timesteps=40000000 max_seconds=None
 
 The default for these is 40 million episodes, but that's not always needed for
 the easier games.
-
-TODO: get a mapping from string to task so I can put this in the argparse. I
-should also use this for the plots to get the correct axes ranges. Put this in a
-separate file ... TODO change `logs` to `pkl_logs` etc ...
 
 # Results
 
