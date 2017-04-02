@@ -64,6 +64,12 @@ Notes:
 
 ## Pong
 
+Command:
+
+```
+python run_dqn_atari.py --game Pong --seed 1 --num_timesteps 30000000 | tee logs_text/Pong_s001.text
+```
+
 - `num_timesteps`: 32 million
 - Training steps: about 7.5 million
 - Time: about 9.5 hours.
@@ -71,6 +77,12 @@ Notes:
 ![pong](figures/Pong.png?raw=true)
 
 ## Breakout
+
+Command:
+
+```
+python run_dqn_atari.py --game Breakout --seed 1 --num_timesteps 40000000 | tee logs_text/Breakout_s001.text
+```
 
 - `num_timesteps`: 24 million
 - Training steps: about 5.7 million
