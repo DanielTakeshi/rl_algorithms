@@ -70,9 +70,10 @@ Command:
 python run_dqn_atari.py --game Pong --seed 1 --num_timesteps 30000000 | tee logs_text/Pong_s001.text
 ```
 
-- `num_timesteps`: 32 million
+- `num_timesteps`: 30 million
 - Training steps: about 7.5 million
-- Time: about 9.5 hours.
+- Episodes: about 4200
+- Time: about 9.0 hours
 
 ![pong](figures/Pong.png?raw=true)
 
@@ -84,12 +85,13 @@ Command:
 python run_dqn_atari.py --game Breakout --seed 1 --num_timesteps 40000000 | tee logs_text/Breakout_s001.text
 ```
 
-- `num_timesteps`: 24 million
-- Training steps: about 5.7 million
-- Episodes: about 10000.
-- Time: about 6.9 hours.
+- `num_timesteps`: 40 million
+- Training steps: about 9.7 million
+- Episodes: about 10,200
+- Time: about 11.8 hours
 
-Yeah, I have *no idea* why the performance just dropped like that ... let me run
-again with a different seed.
+I have no idea why the performance plummeted after 4500 episodes. I may need to
+investigate. Note that a few times we get the absolute perfect highest score
+(two full boards cleared).
 
 ![breakout](figures/Breakout.png?raw=true)

@@ -30,30 +30,39 @@ def smoothed_block(x, n):
 # Pong #
 ########
 
-# Change all '-inf's to be -21.
 name = "Pong"
-pong_data = np.array( pickle.load(open(LOGDIR+'pong_s000.pkl', 'rb')) )
-pong_data = np.maximum(pong_data, -21)
+with open(LOGDIR+'Pong_s001.pkl', 'rb') as f:
+    pong_data = np.array(pickle.load(f))
+    pong_eps = np.array(pickle.load(f))
+pong_data      = np.maximum(pong_data, -21)
 pong_t         = (pong_data[:,0]) / 1000000.0
 pong_mean      = pong_data[:,1]
 pong_best_mean = pong_data[:,2]
 pong_ep        = pong_data[:,3]
+pong_eps_sm    = smoothed_block(pong_eps, 100)
 
-fig, axarr = plt.subplots(1,2, figsize=(15,6))
-axarr[0].set_title(name+ " Scores Per Episode", fontsize=title_size)
-axarr[0].plot(pong_t, pong_ep, c='red', lw=lw, label='Seed 0')
-axarr[1].set_title(name+ " Scores (Blocks of 100)", fontsize=title_size)
-axarr[1].plot(pong_t, pong_mean, c='red', lw=lw, label='Seed 0')
+fig, axarr = plt.subplots(2,2, figsize=(15,12))
+axarr[0,0].set_title(name+ " Scores at Timesteps", fontsize=title_size)
+axarr[0,1].set_title(name+ " Scores at Timesteps (Block 100)", fontsize=title_size)
+axarr[0,0].plot(pong_t, pong_ep, c='red', lw=lw, label='Seed 0')
+axarr[0,1].plot(pong_t, pong_mean, c='red', lw=lw, label='Seed 0')
+axarr[0,0].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
+axarr[0,1].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
+
+axarr[1,0].set_title(name+ " Scores per Episode", fontsize=title_size)
+axarr[1,1].set_title(name+ " Scores per Episode (Block 100)", fontsize=title_size)
+axarr[1,0].plot(pong_eps, c='red', lw=lw, label='Seed 0')
+axarr[1,1].plot(pong_eps_sm, c='red', lw=lw, label='Seed 0')
+axarr[1,0].set_xlabel("Number of Episodes", fontsize=axis_size)
+axarr[1,1].set_xlabel("Number of Episodes", fontsize=axis_size)
 
 for i in range(2):
-    axarr[i].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
-    axarr[i].set_ylabel("Rewards", fontsize=axis_size)
-    axarr[i].set_xlim([0,max(pong_t)])
-    axarr[i].set_ylim([-22,22])
-    axarr[i].tick_params(axis='x', labelsize=tick_size)
-    axarr[i].tick_params(axis='y', labelsize=tick_size)
-    axarr[i].legend(loc='lower right', prop={'size':legend_size})
-
+    for j in range(2):
+        axarr[i,j].set_ylabel("Rewards", fontsize=axis_size)
+        axarr[i,j].tick_params(axis='x', labelsize=tick_size)
+        axarr[i,j].tick_params(axis='y', labelsize=tick_size)
+        axarr[i,j].legend(loc='lower right', prop={'size':legend_size})
+        axarr[i,j].set_ylim([-23,23])
 plt.tight_layout()
 plt.savefig(FIGDIR+name+".png")
 
@@ -63,7 +72,7 @@ plt.savefig(FIGDIR+name+".png")
 ############
 
 name = "Breakout"
-with open(LOGDIR+'breakout_s000.pkl', 'rb') as f:
+with open(LOGDIR+'Breakout_s001.pkl', 'rb') as f:
     breakout_data = np.array(pickle.load(f))
     breakout_eps = np.array(pickle.load(f))
 breakout_t         = (breakout_data[:,0]) / 1000000.0
