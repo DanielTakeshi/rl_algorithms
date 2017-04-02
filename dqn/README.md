@@ -64,10 +64,11 @@ Notes:
 
 ## Pong
 
-Command:
+Commands:
 
 ```
 python run_dqn_atari.py --game Pong --seed 1 --num_timesteps 30000000 | tee logs_text/Pong_s001.text
+python run_dqn_atari.py --game Pong --seed 2 --num_timesteps 30000000 | tee logs_text/Pong_s002.text
 ```
 
 - `num_timesteps`: 30 million

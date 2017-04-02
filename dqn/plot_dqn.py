@@ -13,7 +13,7 @@ FIGDIR = 'figures/'
 title_size = 22
 axis_size = 20
 tick_size = 18
-legend_size = 18
+legend_size = 20
 lw = 3
 
 def smoothed_block(x, n):
@@ -31,30 +31,47 @@ def smoothed_block(x, n):
 ########
 
 name = "Pong"
-with open(LOGDIR+'Pong_s001.pkl', 'rb') as f:
-    pong_data = np.array(pickle.load(f))
-    pong_eps = np.array(pickle.load(f))
-pong_data      = np.maximum(pong_data, -21)
-pong_t         = (pong_data[:,0]) / 1000000.0
-pong_mean      = pong_data[:,1]
-pong_best_mean = pong_data[:,2]
-pong_ep        = pong_data[:,3]
-pong_eps_sm    = smoothed_block(pong_eps, 100)
-
 fig, axarr = plt.subplots(2,2, figsize=(15,12))
-axarr[0,0].set_title(name+ " Scores at Timesteps", fontsize=title_size)
-axarr[0,1].set_title(name+ " Scores at Timesteps (Block 100)", fontsize=title_size)
-axarr[0,0].plot(pong_t, pong_ep, c='red', lw=lw, label='Seed 0')
-axarr[0,1].plot(pong_t, pong_mean, c='red', lw=lw, label='Seed 0')
-axarr[0,0].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
-axarr[0,1].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
 
-axarr[1,0].set_title(name+ " Scores per Episode", fontsize=title_size)
-axarr[1,1].set_title(name+ " Scores per Episode (Block 100)", fontsize=title_size)
-axarr[1,0].plot(pong_eps, c='red', lw=lw, label='Seed 0')
-axarr[1,1].plot(pong_eps_sm, c='red', lw=lw, label='Seed 0')
-axarr[1,0].set_xlabel("Number of Episodes", fontsize=axis_size)
-axarr[1,1].set_xlabel("Number of Episodes", fontsize=axis_size)
+pong_data = []
+pong_eps = []
+pong_t = []
+pong_mean = []
+pong_best_mean = []
+pong_ep = []
+pong_eps_sm = []
+pong_colors = ['red','black']
+pong_labels = ['seed=1','seed=2']
+
+for i in range(0,2):
+    index_str = str(i+1)
+    with open(LOGDIR+'Pong_s00'+index_str+'.pkl', 'rb') as f:
+        pong_data.append( np.array(pickle.load(f)) )
+        pong_eps.append( np.array(pickle.load(f)) )
+    pong_data[i] = np.maximum(pong_data[i], -21)
+    pong_t.append((pong_data[i][:,0]) / 1000000.0)
+    pong_mean.append(pong_data[i][:,1])
+    pong_best_mean.append(pong_data[i][:,2])
+    pong_ep.append(pong_data[i][:,3])
+    pong_eps_sm.append(smoothed_block(pong_eps[i], 100))
+
+    axarr[0,0].set_title(name+ " Scores at Timesteps", fontsize=title_size)
+    axarr[0,1].set_title(name+ " Scores at Timesteps (Block 100)", fontsize=title_size)
+    axarr[0,0].plot(pong_t[i], pong_ep[i], c=pong_colors[i], lw=lw,
+                    label=pong_labels[i])
+    axarr[0,1].plot(pong_t[i], pong_mean[i], c=pong_colors[i], lw=lw, 
+                    label=pong_labels[i])
+    axarr[0,0].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
+    axarr[0,1].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
+    
+    axarr[1,0].set_title(name+ " Scores per Episode", fontsize=title_size)
+    axarr[1,1].set_title(name+ " Scores per Episode (Block 100)", fontsize=title_size)
+    axarr[1,0].plot(pong_eps[i], c=pong_colors[i], lw=lw, 
+                    label=pong_labels[i])
+    axarr[1,1].plot(pong_eps_sm[i], c=pong_colors[i], lw=lw, 
+                    label=pong_labels[i])
+    axarr[1,0].set_xlabel("Number of Episodes", fontsize=axis_size)
+    axarr[1,1].set_xlabel("Number of Episodes", fontsize=axis_size)
 
 for i in range(2):
     for j in range(2):
