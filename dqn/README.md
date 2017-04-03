@@ -84,6 +84,7 @@ Command:
 
 ```
 python run_dqn_atari.py --game Breakout --seed 1 --num_timesteps 40000000 | tee logs_text/Breakout_s001.text
+python run_dqn_atari.py --game Breakout --seed 2 --num_timesteps 40000000 | tee logs_text/Breakout_s002.text
 ```
 
 - `num_timesteps`: 40 million
@@ -93,6 +94,7 @@ python run_dqn_atari.py --game Breakout --seed 1 --num_timesteps 40000000 | tee 
 
 I have no idea why the performance plummeted after 4500 episodes. I may need to
 investigate. Note that a few times we get the absolute perfect highest score
-(two full boards cleared).
+(two full boards cleared); I think the "800" value as the maximum score is wrong
+...
 
 ![breakout](figures/Breakout.png?raw=true)
