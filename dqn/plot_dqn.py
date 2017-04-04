@@ -88,30 +88,49 @@ plt.savefig(FIGDIR+name+".png")
 # Breakout #
 ############
 
+
 name = "Breakout"
-with open(LOGDIR+'Breakout_s001.pkl', 'rb') as f:
-    breakout_data = np.array(pickle.load(f))
-    breakout_eps = np.array(pickle.load(f))
-breakout_t         = (breakout_data[:,0]) / 1000000.0
-breakout_mean      = breakout_data[:,1]
-breakout_best_mean = breakout_data[:,2]
-breakout_ep        = breakout_data[:,3]
-breakout_eps_sm    = smoothed_block(breakout_eps, 100)
-
 fig, axarr = plt.subplots(2,2, figsize=(15,12))
-axarr[0,0].set_title(name+ " Scores at Timesteps", fontsize=title_size)
-axarr[0,1].set_title(name+ " Scores at Timesteps (Block 100)", fontsize=title_size)
-axarr[0,0].plot(breakout_t, breakout_ep, c='blue', lw=lw, label='Seed 0')
-axarr[0,1].plot(breakout_t, breakout_mean, c='blue', lw=lw, label='Seed 0')
-axarr[0,0].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
-axarr[0,1].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
 
-axarr[1,0].set_title(name+ " Scores per Episode", fontsize=title_size)
-axarr[1,1].set_title(name+ " Scores per Episode (Block 100)", fontsize=title_size)
-axarr[1,0].plot(breakout_eps, c='blue', lw=lw, label='Seed 0')
-axarr[1,1].plot(breakout_eps_sm, c='blue', lw=lw, label='Seed 0')
-axarr[1,0].set_xlabel("Number of Episodes", fontsize=axis_size)
-axarr[1,1].set_xlabel("Number of Episodes", fontsize=axis_size)
+breakout_data = []
+breakout_eps = []
+breakout_t = []
+breakout_mean = []
+breakout_best_mean = []
+breakout_ep = []
+breakout_eps_sm = []
+breakout_colors = ['blue','yellow']
+breakout_labels = ['seed=1','seed=2']
+
+for i in range(0,2):
+    index_str = str(i+1)
+    with open(LOGDIR+'Breakout_s00'+index_str+'.pkl', 'rb') as f:
+        breakout_data.append( np.array(pickle.load(f)) )
+        breakout_eps.append( np.array(pickle.load(f)) )
+    breakout_data[i] = np.maximum(breakout_data[i], -21)
+    breakout_t.append((breakout_data[i][:,0]) / 1000000.0)
+    breakout_mean.append(breakout_data[i][:,1])
+    breakout_best_mean.append(breakout_data[i][:,2])
+    breakout_ep.append(breakout_data[i][:,3])
+    breakout_eps_sm.append(smoothed_block(breakout_eps[i], 100))
+
+    axarr[0,0].set_title(name+ " Scores at Timesteps", fontsize=title_size)
+    axarr[0,1].set_title(name+ " Scores at Timesteps (Block 100)", fontsize=title_size)
+    axarr[0,0].plot(breakout_t[i], breakout_ep[i], c=breakout_colors[i], lw=lw,
+                    label=breakout_labels[i])
+    axarr[0,1].plot(breakout_t[i], breakout_mean[i], c=breakout_colors[i], lw=lw, 
+                    label=breakout_labels[i])
+    axarr[0,0].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
+    axarr[0,1].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
+    
+    axarr[1,0].set_title(name+ " Scores per Episode", fontsize=title_size)
+    axarr[1,1].set_title(name+ " Scores per Episode (Block 100)", fontsize=title_size)
+    axarr[1,0].plot(breakout_eps[i], c=breakout_colors[i], lw=lw, 
+                    label=breakout_labels[i])
+    axarr[1,1].plot(breakout_eps_sm[i], c=breakout_colors[i], lw=lw, 
+                    label=breakout_labels[i])
+    axarr[1,0].set_xlabel("Number of Episodes", fontsize=axis_size)
+    axarr[1,1].set_xlabel("Number of Episodes", fontsize=axis_size)
 
 for i in range(2):
     for j in range(2):
@@ -119,6 +138,5 @@ for i in range(2):
         axarr[i,j].tick_params(axis='x', labelsize=tick_size)
         axarr[i,j].tick_params(axis='y', labelsize=tick_size)
         axarr[i,j].legend(loc='upper left', prop={'size':legend_size})
-
 plt.tight_layout()
 plt.savefig(FIGDIR+name+".png")
