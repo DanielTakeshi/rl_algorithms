@@ -22,6 +22,23 @@ information:
 The following contain my notes, observations, and results.
 
 
+# Commands, Code, etc.
+
+Use:
+
+```
+python run_expert.py experts/Hopper-v1.pkl Hopper-v1 --render --num_rollouts 20
+```
+
+These generate expert policies and I have modified the code to save these. I can
+benchmark the rollout results with those in the [Generative Adversarial
+Imitation Learning paper][1] to ensure that performance is comparable. (See
+Table 1 in that paper.)
+
 # Results
 
 In progress ..
+
+
+
+[1]:https://arxiv.org/abs/1606.03476

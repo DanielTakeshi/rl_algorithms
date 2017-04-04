@@ -68,5 +68,11 @@ def main():
         expert_data = {'observations': np.array(observations),
                        'actions': np.array(actions)}
 
+        # Save the data
+        print("Expert data has been stored.")
+        print("obs-shape = {}".format(expert_data['observations'].shape))
+        print("act-shape = {}".format(expert_data['actions'].shape))
+        np.save("data/" +args.envname, expert_data)
+
 if __name__ == '__main__':
     main()
