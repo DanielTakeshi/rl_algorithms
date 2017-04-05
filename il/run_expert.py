@@ -72,7 +72,8 @@ def main():
         print("Expert data has been stored.")
         print("obs-shape = {}".format(expert_data['observations'].shape))
         print("act-shape = {}".format(expert_data['actions'].shape))
-        np.save("data/" +args.envname, expert_data)
+        str_roll = str(args.num_rollouts).zfill(4)
+        np.save("data/" +args.envname+ "_" +str_roll, expert_data)
 
 if __name__ == '__main__':
     main()
