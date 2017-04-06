@@ -1,4 +1,5 @@
 *.pyc
 *.swp
 .DS_Store
-private/*
+il/data/*
+il/results/*
