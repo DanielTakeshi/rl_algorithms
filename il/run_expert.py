@@ -22,7 +22,8 @@ def main():
     parser.add_argument('expert_policy_file', type=str)
     parser.add_argument('envname', type=str)
     parser.add_argument('--render', action='store_true')
-    parser.add_argument("--max_timesteps", type=int)
+    parser.add_argument('--save', action='store_true')
+    parser.add_argument('--max_timesteps', type=int)
     parser.add_argument('--num_rollouts', type=int, default=20,
                         help='Number of expert roll outs')
     args = parser.parse_args()
@@ -69,11 +70,12 @@ def main():
                        'actions': np.array(actions)}
 
         # Save the data
-        print("Expert data has been stored.")
         print("obs-shape = {}".format(expert_data['observations'].shape))
         print("act-shape = {}".format(expert_data['actions'].shape))
-        str_roll = str(args.num_rollouts).zfill(4)
-        np.save("data/" +args.envname+ "_" +str_roll, expert_data)
+        if args.save:
+            str_roll = str(args.num_rollouts).zfill(4)
+            np.save("data/" +args.envname+ "_" +str_roll, expert_data)
+            print("expert data has been saved.")
 
 if __name__ == '__main__':
     main()

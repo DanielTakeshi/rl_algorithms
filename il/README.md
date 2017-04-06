@@ -24,20 +24,19 @@ The following contain my notes, observations, and results.
 
 # Commands, Code, etc.
 
-To generate expert data, see the relevant scripts in the `bash_scripts`
-directory. For instance, with Hopper I ran:
+To generate expert data, run
 
 ```
-python run_expert.py experts/Hopper-v1.pkl Hopper-v1 --render --num_rollouts 4
-python run_expert.py experts/Hopper-v1.pkl Hopper-v1 --render --num_rollouts 11
-python run_expert.py experts/Hopper-v1.pkl Hopper-v1 --render --num_rollouts 18
-python run_expert.py experts/Hopper-v1.pkl Hopper-v1 --render --num_rollouts 25
+bash bash_scripts/gen_exp_data.sh
 ```
 
-These generate expert policies and I have modified the code to save these. I can
-benchmark the rollout results with those in the [Generative Adversarial
-Imitation Learning paper][1] to ensure that performance is comparable. (See
-Table 1 in that paper.)
+which will run and save expert trajectories. They're not in this repository
+since they're rather larger. The number of trajectories used should match the
+numbers reported in the [Generative Adversarial Imitation Learning paper][1]
+(see Table 1). The expert performance that I'm seeing is roughly similar to
+what's reported in the paper, with the exception of the Walker environment, but
+I may be running a different version of it. See the output in
+`logs/gen_exp_data.text` for details.
 
 To run behavioral cloning and to test results, use the `bash_scripts` directory
 again, this time for scripts running the behavioral cloning code.
