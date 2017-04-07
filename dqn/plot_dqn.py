@@ -88,7 +88,6 @@ plt.savefig(FIGDIR+name+".png")
 # Breakout #
 ############
 
-
 name = "Breakout"
 fig, axarr = plt.subplots(2,2, figsize=(15,12))
 
@@ -129,6 +128,63 @@ for i in range(0,2):
                     label=breakout_labels[i])
     axarr[1,1].plot(breakout_eps_sm[i], c=breakout_colors[i], lw=lw, 
                     label=breakout_labels[i])
+    axarr[1,0].set_xlabel("Number of Episodes", fontsize=axis_size)
+    axarr[1,1].set_xlabel("Number of Episodes", fontsize=axis_size)
+
+for i in range(2):
+    for j in range(2):
+        axarr[i,j].set_ylabel("Rewards", fontsize=axis_size)
+        axarr[i,j].tick_params(axis='x', labelsize=tick_size)
+        axarr[i,j].tick_params(axis='y', labelsize=tick_size)
+        axarr[i,j].legend(loc='upper left', prop={'size':legend_size})
+plt.tight_layout()
+plt.savefig(FIGDIR+name+".png")
+
+
+#############
+# BeamRider #
+#############
+
+name = "BeamRider"
+fig, axarr = plt.subplots(2,2, figsize=(15,12))
+
+beamrider_data = []
+beamrider_eps = []
+beamrider_t = []
+beamrider_mean = []
+beamrider_best_mean = []
+beamrider_ep = []
+beamrider_eps_sm = []
+beamrider_colors = ['orange','purple']
+beamrider_labels = ['seed=1','seed=2']
+
+for i in range(0,2):
+    index_str = str(i+1)
+    with open(LOGDIR+'BeamRider_s00'+index_str+'.pkl', 'rb') as f:
+        beamrider_data.append( np.array(pickle.load(f)) )
+        beamrider_eps.append( np.array(pickle.load(f)) )
+    beamrider_data[i] = np.maximum(beamrider_data[i], -21)
+    beamrider_t.append((beamrider_data[i][:,0]) / 1000000.0)
+    beamrider_mean.append(beamrider_data[i][:,1])
+    beamrider_best_mean.append(beamrider_data[i][:,2])
+    beamrider_ep.append(beamrider_data[i][:,3])
+    beamrider_eps_sm.append(smoothed_block(beamrider_eps[i], 100))
+
+    axarr[0,0].set_title(name+ " Scores at Timesteps", fontsize=title_size)
+    axarr[0,1].set_title(name+ " Scores at Timesteps (Block 100)", fontsize=title_size)
+    axarr[0,0].plot(beamrider_t[i], beamrider_ep[i], c=beamrider_colors[i], lw=lw,
+                    label=beamrider_labels[i])
+    axarr[0,1].plot(beamrider_t[i], beamrider_mean[i], c=beamrider_colors[i], lw=lw, 
+                    label=beamrider_labels[i])
+    axarr[0,0].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
+    axarr[0,1].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
+    
+    axarr[1,0].set_title(name+ " Scores per Episode", fontsize=title_size)
+    axarr[1,1].set_title(name+ " Scores per Episode (Block 100)", fontsize=title_size)
+    axarr[1,0].plot(beamrider_eps[i], c=beamrider_colors[i], lw=lw, 
+                    label=beamrider_labels[i])
+    axarr[1,1].plot(beamrider_eps_sm[i], c=beamrider_colors[i], lw=lw, 
+                    label=beamrider_labels[i])
     axarr[1,0].set_xlabel("Number of Episodes", fontsize=axis_size)
     axarr[1,1].set_xlabel("Number of Episodes", fontsize=axis_size)
 
