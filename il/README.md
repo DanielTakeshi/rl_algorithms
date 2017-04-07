@@ -47,7 +47,7 @@ For Hopper, they're a bit odd, not sure why Ho & Ermon report such different
 values. I'll need to check their loss function and also to check if the expert
 policies are roughly the same dataset-wise as ours. This is what I see:
 
-![hopper](figures/figures/Hopper-v1.png?raw=true)
+![hopper](figures/Hopper-v1.png?raw=true)
 
 Yeah ... why does the best use 11 rollouts? Beats me.
 
