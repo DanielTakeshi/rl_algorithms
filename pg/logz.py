@@ -1,5 +1,4 @@
 """
-
 Some simple logging functionality, inspired by rllab's logging.
 Assumes that each diagnostic gets logged each iteration
 
@@ -10,7 +9,6 @@ To load the learning curves, you can do, for example
 
 A = np.genfromtxt('/tmp/expt_1468984536/log.txt',delimiter='\t',dtype=None, names=True)
 A['EpRewMean']
-
 """
 
 import os.path as osp, shutil, time, atexit, os, subprocess
@@ -27,6 +25,7 @@ color2num = dict(
     crimson=38
 )
 
+
 def colorize(string, color, bold=False, highlight=False):
     attr = []
     num = color2num[color]
@@ -35,12 +34,14 @@ def colorize(string, color, bold=False, highlight=False):
     if bold: attr.append('1')
     return '\x1b[%sm%s\x1b[0m' % (';'.join(attr), string)
 
+
 class G:
     output_dir = None
     output_file = None
     first_row = True
     log_headers = []
     log_current_row = {}
+
 
 def configure_output_dir(d=None):
     """
@@ -58,6 +59,7 @@ def configure_output_dir(d=None):
         print("configure_output_dir: not storing the git diff, probably because you're not in a git repo")
     print(colorize("Logging data to %s"%G.output_file.name, 'green', bold=True))
 
+
 def log_tabular(key, val):
     """
     Log a value of some diagnostic
@@ -69,6 +71,7 @@ def log_tabular(key, val):
         assert key in G.log_headers, "Trying to introduce a new key %s that you didn't include in the first iteration"%key
     assert key not in G.log_current_row, "You already set %s this iteration. Maybe you forgot to call dump_tabular()"%key
     G.log_current_row[key] = val
+
 
 def dump_tabular():
     """
