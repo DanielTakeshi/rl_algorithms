@@ -7,4 +7,6 @@ details. Here's the first figure they wanted:
 ![part01](figures/part_01.png?raw=true)
 
 I think it looks good. Their "-300" requirement for the reward is a bit unclear.
-The performance seems to reach that level but sometimes dips below.
+The performance seems to reach that level but sometimes dips below. I ran this
+with the default settings, except for increasing the number of iterations from
+300 to 500.

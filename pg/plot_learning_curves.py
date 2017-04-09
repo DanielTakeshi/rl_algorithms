@@ -16,6 +16,7 @@ from pylab import *
 import os
 from os.path import join
 dirnames = os.listdir(args.expdir)
+lw=2
 
 fig, axes = subplots(4, figsize=(12,10))
 for dirname in dirnames:
@@ -23,10 +24,10 @@ for dirname in dirnames:
     A = np.genfromtxt(join(args.expdir, dirname, 'log.txt'),delimiter='\t',dtype=None, names=True)
     # axes[0].plot(scipy.signal.savgol_filter(A['EpRewMean'] , 21, 3), '-x')
     x = A['TimestepsSoFar']
-    axes[0].plot(x, A['EpRewMean'], '-x')
-    axes[1].plot(x, A['KLOldNew'], '-x')
-    axes[2].plot(x, A['Entropy'], '-x')
-    axes[3].plot(x, A['EVBefore'], '-x')
+    axes[0].plot(x, A['EpRewMean'], '-', lw=lw)
+    axes[1].plot(x, A['KLOldNew'], '-', lw=lw)
+    axes[2].plot(x, A['Entropy'], '-', lw=lw)
+    axes[3].plot(x, A['EVBefore'], '-', lw=lw)
 legend(dirnames,loc='best').draggable()
 axes[0].set_ylabel("EpRewMean")
 axes[1].set_ylabel("KLOldNew")
