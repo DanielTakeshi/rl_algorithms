@@ -196,3 +196,61 @@ for i in range(2):
         axarr[i,j].legend(loc='upper left', prop={'size':legend_size})
 plt.tight_layout()
 plt.savefig(FIGDIR+name+".png")
+
+
+
+##########
+# Enduro #
+##########
+
+name = "Enduro"
+fig, axarr = plt.subplots(2,2, figsize=(15,12))
+
+enduro_data = []
+enduro_eps = []
+enduro_t = []
+enduro_mean = []
+enduro_best_mean = []
+enduro_ep = []
+enduro_eps_sm = []
+enduro_colors = ['gold','midnightblue']
+enduro_labels = ['seed=1','seed=2']
+
+for i in range(0,2):
+    index_str = str(i+1)
+    with open(LOGDIR+'Enduro_s00'+index_str+'.pkl', 'rb') as f:
+        enduro_data.append( np.array(pickle.load(f)) )
+        enduro_eps.append( np.array(pickle.load(f)) )
+    enduro_data[i] = np.maximum(enduro_data[i], -21)
+    enduro_t.append((enduro_data[i][:,0]) / 1000000.0)
+    enduro_mean.append(enduro_data[i][:,1])
+    enduro_best_mean.append(enduro_data[i][:,2])
+    enduro_ep.append(enduro_data[i][:,3])
+    enduro_eps_sm.append(smoothed_block(enduro_eps[i], 100))
+
+    axarr[0,0].set_title(name+ " Scores at Timesteps", fontsize=title_size)
+    axarr[0,1].set_title(name+ " Scores at Timesteps (Block 100)", fontsize=title_size)
+    axarr[0,0].plot(enduro_t[i], enduro_ep[i], c=enduro_colors[i], lw=lw,
+                    label=enduro_labels[i])
+    axarr[0,1].plot(enduro_t[i], enduro_mean[i], c=enduro_colors[i], lw=lw, 
+                    label=enduro_labels[i])
+    axarr[0,0].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
+    axarr[0,1].set_xlabel("Training Steps (in Millions)", fontsize=axis_size)
+    
+    axarr[1,0].set_title(name+ " Scores per Episode", fontsize=title_size)
+    axarr[1,1].set_title(name+ " Scores per Episode (Block 100)", fontsize=title_size)
+    axarr[1,0].plot(enduro_eps[i], c=enduro_colors[i], lw=lw, 
+                    label=enduro_labels[i])
+    axarr[1,1].plot(enduro_eps_sm[i], c=enduro_colors[i], lw=lw, 
+                    label=enduro_labels[i])
+    axarr[1,0].set_xlabel("Number of Episodes", fontsize=axis_size)
+    axarr[1,1].set_xlabel("Number of Episodes", fontsize=axis_size)
+
+for i in range(2):
+    for j in range(2):
+        axarr[i,j].set_ylabel("Rewards", fontsize=axis_size)
+        axarr[i,j].tick_params(axis='x', labelsize=tick_size)
+        axarr[i,j].tick_params(axis='y', labelsize=tick_size)
+        axarr[i,j].legend(loc='upper left', prop={'size':legend_size})
+plt.tight_layout()
+plt.savefig(FIGDIR+name+".png")

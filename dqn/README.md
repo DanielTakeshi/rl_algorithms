@@ -99,8 +99,8 @@ investigate. Note that a few times we get the absolute perfect highest score
 
 ![breakout](figures/Breakout.png?raw=true)
 
-## BeamRider
 
+## BeamRider
 
 Command:
 
@@ -111,7 +111,7 @@ python run_dqn_atari.py --game BeamRider --seed 2 --num_timesteps 40000000 | tee
 
 - `num_timesteps`: 40 million
 - Training steps: about 10.0 million
-- Episodes: about 2,500 to 4000
+- Episodes: about 2,500 to 4,000
 - Time: about 12.5 hours
 
 The results look different among the seeds since seed 2 apparently had better
@@ -119,3 +119,25 @@ peformance earlier, thus meaning its episodes became longer sooner than the seed
 1 version. At least they look reasonably good. A3C got roughly 13k on this game.
 
 ![beamrider](figures/BeamRider.png?raw=true)
+
+
+## Enduro
+
+Command:
+
+```
+python run_dqn_atari.py --game Enduro --seed 1 --num_timesteps 40000000 | tee logs_text/Enduro_s001.text
+python run_dqn_atari.py --game Enduro --seed 2 --num_timesteps 40000000 | tee logs_text/Enduro_s002.text
+```
+
+- `num_timesteps`: 40 million
+- Training steps: about 10.0 million
+- Episodes: about 2,500 to 3,000
+- Time: about 12.5 hours
+
+Ack, what happened to seed 2?!? The first seed matches the DQN result (475.6)
+from the Nature script, yet I don't know why the second one failed to learn
+much. It's worth noting, though, that the A3C paper actually reported -82.2 on
+this game (really?!?). Oh well ...
+
+![enduro](figures/Enduro.png?raw=true)
