@@ -172,7 +172,7 @@ def main_cartpole(n_iter=100, gamma=1.0, min_timesteps_per_batch=1000,
 
     # The following quantities are just used for computing KL and entropy, JUST FOR DIAGNOSTIC PURPOSES >>>>
     sy_oldlogp_na = tf.nn.log_softmax(sy_oldlogits_na)
-    sy_oldp_na    = tf.exp(sy_oldlogp_na) 
+    sy_oldp_na    = tf.exp(sy_oldlogp_na)
     sy_kl         = tf.reduce_sum(sy_oldp_na * (sy_oldlogp_na - sy_logp_na)) / tf.to_float(sy_n)
     sy_p_na       = tf.exp(sy_logp_na)
     sy_ent        = tf.reduce_sum( - sy_p_na * sy_logp_na) / tf.to_float(sy_n)
@@ -320,7 +320,8 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
 
     # This is still part of the parameters! It's not symbolic, of course.  The
     # homework in the class website uses an outdated API, w/out `()` at the end.
-    logstd_a = tf.get_variable("logstdev", [ac_dim], initializer=tf.zeros_initializer())
+    logstd_a       = tf.get_variable("logstdev", [ac_dim], initializer=tf.zeros_initializer())
+    sy_oldlogstd_a = tf.placeholder(name="oldlogstdev", shape=[ac_dim], dtype=tf.float32)
 
     # Set up some symbolic variables (i.e placeholders). Actions are now floats!
     sy_ob_no      = tf.placeholder(shape=[None, ob_dim], name="ob", dtype=tf.float32)
@@ -344,20 +345,21 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
     sy_sampled_ac = gauss_policy.sample()[0] 
     sy_logprob_n  = tf.log(gauss_policy.pdf(sy_ac_na) + 1e-8)
 
-    # The following quantities are used for computing KL and entropy. Note that
-    # unlike the cartpole setting, here we're actually using these. The sy_ent
-    # is differential entropy.
-    # sy_oldlogp_na = tf.nn.log_softmax(sy_oldlogits_na)
-    # sy_oldp_na    = tf.exp(sy_oldlogp_na) 
-    # sy_kl         = tf.reduce_sum(sy_oldp_na * (sy_oldlogp_na - sy_logp_na)) / tf.to_float(sy_n)
-    # sy_p_na       = tf.exp(sy_logp_na)
-    # sy_ent        = tf.reduce_sum( - sy_p_na * sy_logp_na) / tf.to_float(sy_n)
+    # The following quantities are used for computing KL and entropy. For
+    # entropy, it's differential entropy and that has a closed-form solution,
+    # involving the determinant (product of diagonal elements). Be careful not
+    # to get confused between the logstd vs. std vs. variance terms!!
+    old_std_batch    = tf.ones(shape=(sy_n,ac_dim), dtype=tf.float32) * tf.exp(sy_oldlogstd_a)
+    old_gauss_policy = distr.MultivariateNormalDiag(mu=sy_oldmean_na, diag_stdev=old_std_batch)
+    sy_kl            = tf.reduce_mean(distr.kl(old_gauss_policy, gauss_policy))
+    sy_determinant   = tf.reduce_prod(tf.exp(logstd_a)) 
+    sy_ent           = 0.5 * tf.log((2.*np.pi*np.e)**ac_dim * sy_determinant)
 
     # sy_surr: loss function that we'll differentiate to get the policy gradient
     # sy_stepsize: symbolic, to change the stepsize during optimization if desired
-    sy_surr = - tf.reduce_mean(sy_adv_n * sy_logprob_n) 
+    sy_surr     = - tf.reduce_mean(sy_adv_n * sy_logprob_n) 
     sy_stepsize = tf.placeholder(shape=[], dtype=tf.float32) 
-    update_op = tf.train.AdamOptimizer(sy_stepsize).minimize(sy_surr)
+    update_op   = tf.train.AdamOptimizer(sy_stepsize).minimize(sy_surr)
 
     sess = tf.Session()
     sess.__enter__() # equivalent to `with sess:`
@@ -371,8 +373,9 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
     print("std_batch.shape = {}".format(std_batch.get_shape())) # (?,adim)
     print("tf.exp(logstd_a).shape = {}".format(tf.exp(logstd_a).get_shape())) # (adim,)
     print("sy_sampled_ac.shape = {}".format(sy_sampled_ac.get_shape())) # (adim,)
-    print("sy_logprob_n.shape = {}\n".format(sy_logprob_n.get_shape())) # (?,)
-    #sys.exit()
+    print("sy_logprob_n.shape = {}".format(sy_logprob_n.get_shape())) # (?,)
+    print("sy_kl.shape = {}".format(sy_kl.get_shape())) # ()
+    print("sy_ent.shape = {}\n".format(sy_ent.get_shape())) # ()
 
     for i in range(n_iter):
         print("********** Iteration %i ************"%i)
@@ -426,15 +429,15 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
         # Policy update. I _think_ this is how we get the old logstd.
         _, oldmean_na, oldlogstd_a = sess.run(
                 [update_op, sy_mean_na, logstd_a], 
-                feed_dict={sy_ob_no:ob_no, 
-                           sy_ac_na:ac_n, 
-                           sy_adv_n:standardized_adv_n, 
-                           sy_stepsize:stepsize
+                feed_dict={sy_ob_no: ob_no, 
+                           sy_ac_na: ac_n, 
+                           sy_adv_n: standardized_adv_n, 
+                           sy_stepsize: stepsize
                 })
-        sys.exit()
-        kl, ent = sess.run([sy_kl, sy_ent], 
-                           feed_dict={sy_ob_no:ob_no, 
-                                      sy_oldmean_na:oldmean_na
+        kl, ent = sess.run([sy_kl, sy_ent],
+                           feed_dict={sy_ob_no: ob_no, 
+                                      sy_oldmean_na: oldmean_na,
+                                      sy_oldlogstd_a: oldlogstd_a
                            })
 
         # Daniel: the rest of this for loop was provided in the starter code. I
@@ -466,13 +469,16 @@ def main_pendulum1(d):
 
 
 if __name__ == "__main__":
-    """ Have to get this better-organized ... """
+    """ 
+    TODO: get this better-organized with a few arg-parses, etc.
+    """
+
     if 0:
         main_cartpole(logdir=None) # when you want to start collecting results, set the logdir
     if 1:
         general_params = dict(gamma=0.97, animate=False, min_timesteps_per_batch=2500, n_iter=300, initial_stepsize=1e-3)
-        more_params = dict(logdir=None, seed=0, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params)
-        main_pendulum(**more_params) # when you want to start collecting results, set the logdir
+        more_params = dict(logdir='outputs/hw_part_1', seed=0, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params)
+        main_pendulum(**more_params) 
     if 0:
         general_params = dict(gamma=0.97, animate=False, min_timesteps_per_batch=2500, n_iter=300, initial_stepsize=1e-3)
         params = [
