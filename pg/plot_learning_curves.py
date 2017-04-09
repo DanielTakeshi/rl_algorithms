@@ -1,5 +1,8 @@
 """
-To plot this, you need to provide the experiment directory.
+To plot this, you need to provide the experiment directory. For the first part,
+which is just plotting performnace, do (at least on my laptop):
+
+python plot_learning_curves.py outputs/
 """
 import argparse
 import sys
@@ -31,4 +34,4 @@ axes[2].set_ylabel("Entropy")
 axes[3].set_ylabel("EVBefore")
 axes[3].set_ylim(-1,1)
 axes[-1].set_xlabel("Iterations")
-fig.savefig("figures/hw_part_1.png")
+fig.savefig("figures/part_01.png")
