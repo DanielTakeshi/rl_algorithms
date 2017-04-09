@@ -1,4 +1,5 @@
 import numpy as np
+np.set_printoptions(suppress=True, precision=5)
 import tensorflow as tf
 import tensorflow.contrib.distributions as distr
 import gym
@@ -75,8 +76,12 @@ class LinearValueFunction(object):
     coef = None
 
     def fit(self, X, y):
-        """ Updates weights (self.coef) with design matrix X (i.e. observations)
-        and targets (i.e. actual returns) y. """
+        """ 
+        Updates weights (self.coef) with design matrix X (i.e. observations) and
+        targets (i.e. actual returns) y. 
+        """
+        assert X.shape[0] == y.shape[0]
+        assert len(y.shape) == 1
         Xp = self.preproc(X)
         A = Xp.T.dot(Xp)
         nfeats = Xp.shape[1]
@@ -273,7 +278,8 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
 
       sy_ob_no:       batch of observations, both for PG computation AND running policy
       sy_h1:          hidden layer (before this: input -> dense -> relu)
-      sy_mean_na:     final net output, the mean of a Gaussian, NOT a probability distribution
+      sy_mean_na:     final net output (like sy_logits_na from earlier), mean of a Gaussian
+      sy_n:           clever way to obtain the batch size (or 1, for running policy)
 
     The following are for the policy, but not the gradient:
 
@@ -283,7 +289,6 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
 
       sy_ac_na:       batch of actions taken by the policy, for PG computation
       sy_adv_n:       advantage function estimate (one per action vector)
-      sy_n:           clever way to obtain the batch size during training
       sy_logprob_n:   log-prob of actions taken in the batch, for PG computation
 
     Here's the idea. Our parameters consists of (neural network weights, log std
@@ -313,28 +318,31 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
     elif vf_type == 'nn':
         vf = NnValueFunction(ob_dim=ob_dim, **vf_params)
 
-    # This is still part of the parameters! It's not symbolic, of course. Also,
-    # the homework in the class website is outdated; missing `()` at the end.
+    # This is still part of the parameters! It's not symbolic, of course.  The
+    # homework in the class website uses an outdated API, w/out `()` at the end.
     logstd_a = tf.get_variable("logstdev", [ac_dim], initializer=tf.zeros_initializer())
 
-    # Set up some symbolic variables (i.e placeholders).
+    # Set up some symbolic variables (i.e placeholders). Actions are now floats!
     sy_ob_no      = tf.placeholder(shape=[None, ob_dim], name="ob", dtype=tf.float32)
-    sy_ac_na      = tf.placeholder(shape=[None, ac_dim], name="ac", dtype=tf.int32) 
+    sy_ac_na      = tf.placeholder(shape=[None, ac_dim], name="ac", dtype=tf.float32) 
     sy_adv_n      = tf.placeholder(shape=[None], name="adv", dtype=tf.float32)
     sy_h1         = lrelu(dense(sy_ob_no, 32, "h1", weight_init=normc_initializer(1.0)))
     sy_mean_na    = dense(sy_h1, ac_dim, "mean", weight_init=normc_initializer(0.05))
+    sy_oldmean_na = tf.placeholder(shape=[None, ac_dim], name='oldmean', dtype=tf.float32)
     sy_n          = tf.shape(sy_ob_no)[0]
 
     # Set up the Gaussian distribution. It's not a symbolic variable, I think.
-    # Also, sy_mean_na.shape = (bs,ac_dim) so I think the standard deviation
-    # also has to have bs as the first dimension. Another idea: maybe explicitly
-    # compute the log prob, rather than calling gauss_policy.pdf? It might more
-    # numerically stable. ALSO how would we handle this with a single input?
-    # Think carefully about this section ...
-    std_batch     = tf.ones((sy_n,ac_dim)) * tf.exp(logstd_a)
+    # Maybe explicitly compute the log prob? It might more numerically stable.
+    # However, this should work due to the shared logstd_a. In addition, the
+    # batch mode lets us encode multiple distributions in gauss_policy.
+    # Note: sy_n will be either 1 (if running policy) or n (if training).
+    # Note: sy_sampled_ac uses [0] b/c sy_mean_na would be [[-- a --]] and thus
+    # the gauss_policy.sample() also "looks like" [[-- a --]].
+    # Note: adding a small epsilon to the log to prevent extremely low #s.
+    std_batch     = tf.ones(shape=(sy_n,ac_dim), dtype=tf.float32) * tf.exp(logstd_a)
     gauss_policy  = distr.MultivariateNormalDiag(mu=sy_mean_na, diag_stdev=std_batch)
-    sy_sampled_ac = gauss_policy.sample()
-    sy_logprob_n  = tf.log(gauss_policy.pdf(sy_ac_na) + 0.00000001)
+    sy_sampled_ac = gauss_policy.sample()[0] 
+    sy_logprob_n  = tf.log(gauss_policy.pdf(sy_ac_na) + 1e-8)
 
     # The following quantities are used for computing KL and entropy. Note that
     # unlike the cartpole setting, here we're actually using these. The sy_ent
@@ -345,10 +353,9 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
     # sy_p_na       = tf.exp(sy_logp_na)
     # sy_ent        = tf.reduce_sum( - sy_p_na * sy_logp_na) / tf.to_float(sy_n)
 
-    # Loss function that we'll differentiate to get the policy gradient ("surr" is for "surrogate loss")
+    # sy_surr: loss function that we'll differentiate to get the policy gradient
+    # sy_stepsize: symbolic, to change the stepsize during optimization if desired
     sy_surr = - tf.reduce_mean(sy_adv_n * sy_logprob_n) 
-
-    # Symbolic, in case you want to change the stepsize during optimization. (We're not doing that currently)
     sy_stepsize = tf.placeholder(shape=[], dtype=tf.float32) 
     update_op = tf.train.AdamOptimizer(sy_stepsize).minimize(sy_surr)
 
@@ -359,19 +366,79 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
     stepsize = initial_stepsize
 
     # Debugging.
-    print("sy_ac_na.shape = {}".format(sy_ac_na.get_shape()))
-    print("sy_mean_na.shape = {}".format(sy_mean_na.get_shape()))
-    print("std_batch.shape = {}".format(std_batch.get_shape()))
-    print("tf.exp(logstd_a).shape = {}".format(tf.exp(logstd_a).get_shape()))
-    print("sy_sampled_ac.shape = {}".format(sy_sampled_ac.get_shape()))
-    print("sy_logprob_n.shape = {}".format(sy_logprob_n.get_shape()))
-    sys.exit()
+    print("\nsy_ac_na.shape = {}".format(sy_ac_na.get_shape())) # (?,adim)
+    print("sy_mean_na.shape = {}".format(sy_mean_na.get_shape())) # (?,adim)
+    print("std_batch.shape = {}".format(std_batch.get_shape())) # (?,adim)
+    print("tf.exp(logstd_a).shape = {}".format(tf.exp(logstd_a).get_shape())) # (adim,)
+    print("sy_sampled_ac.shape = {}".format(sy_sampled_ac.get_shape())) # (adim,)
+    print("sy_logprob_n.shape = {}\n".format(sy_logprob_n.get_shape())) # (?,)
+    #sys.exit()
 
     for i in range(n_iter):
         print("********** Iteration %i ************"%i)
 
-        ### YOUR_CODE_HERE
+        # Collect paths until we have enough timesteps.
+        timesteps_this_batch = 0
+        paths = []
+        while True:
+            ob = env.reset()
+            terminated = False
+            obs, acs, rewards = [], [], []
+            animate_this_episode = (len(paths)==0 and (i%10 == 0) and animate)
+            while True:
+                if animate_this_episode:
+                    env.render()
+                obs.append(ob)
+                ac = sess.run(sy_sampled_ac, feed_dict={sy_ob_no : ob[None]})
+                acs.append(ac)
+                ob, rew, done, _ = env.step(ac)
+                rewards.append(rew)
+                if done:
+                    break                    
+            path = {"observation" : np.array(obs), "terminated" : terminated,
+                    "reward" : np.array(rewards), "action" : np.array(acs)}
+            paths.append(path)
+            timesteps_this_batch += pathlength(path)
+            if timesteps_this_batch > min_timesteps_per_batch:
+                break
+        total_timesteps += timesteps_this_batch
 
+        # Estimate advantage function using baseline vf (these are lists!).
+        vtargs, vpreds, advs = [], [], []
+        for path in paths:
+            rew_t = path["reward"]
+            return_t = discount(rew_t, gamma)
+            vpred_t = vf.predict(path["observation"])
+            adv_t = return_t - vpred_t
+            advs.append(adv_t)
+            vtargs.append(return_t)
+            vpreds.append(vpred_t)
+
+        # Build arrays for policy update and also re-fit the baseline.
+        ob_no = np.concatenate([path["observation"] for path in paths])
+        ac_n = np.concatenate([path["action"] for path in paths])
+        adv_n = np.concatenate(advs)
+        standardized_adv_n = (adv_n - adv_n.mean()) / (adv_n.std() + 1e-8)
+        vtarg_n = np.concatenate(vtargs)
+        vpred_n = np.concatenate(vpreds)
+        vf.fit(ob_no, vtarg_n)
+
+        # Policy update. I _think_ this is how we get the old logstd.
+        _, oldmean_na, oldlogstd_a = sess.run(
+                [update_op, sy_mean_na, logstd_a], 
+                feed_dict={sy_ob_no:ob_no, 
+                           sy_ac_na:ac_n, 
+                           sy_adv_n:standardized_adv_n, 
+                           sy_stepsize:stepsize
+                })
+        sys.exit()
+        kl, ent = sess.run([sy_kl, sy_ent], 
+                           feed_dict={sy_ob_no:ob_no, 
+                                      sy_oldmean_na:oldmean_na
+                           })
+
+        # Daniel: the rest of this for loop was provided in the starter code. I
+        # assume for now that it goes _after_ all of the code we're writing.
         if kl > desired_kl * 2: 
             stepsize /= 1.5
             print('stepsize -> %s'%stepsize)
