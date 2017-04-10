@@ -19,7 +19,7 @@ And then the smoothed version, where I took averages over the three trials:
 
 ![cartpole_sm](figures/cartpole_comparison_sm.png?raw=true)
 
-Here's the next part. See **Cartpole**, with three seeds run:
+Now with **Pendulum**, with three seeds run:
 
 ![pendulum](figures/pendulum_comparison.png?raw=true)
 
@@ -32,4 +32,5 @@ network value function approximator, because these problems are too simple.
 
 For hyperparameters, look at the `main.py` script. I may decide to write them
 more formally later. But at this point, I'd really like to move on to writing
-something more advanced such as Trust Region Policy Optimization.
+something more advanced such as Trust Region Policy Optimization. Also, I should
+modify `main.py` to get the parallelism working.
