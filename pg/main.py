@@ -103,7 +103,65 @@ class LinearValueFunction(object):
 
 class NnValueFunction(object):
     """ Estimates the baseline function for PGs via neural network. """
-    pass # YOUR CODE HERE
+
+    def __init__(self, ob_dim=None, n_epochs=10, stepsize=1e-3):
+        """ 
+        They provide us with an ob_dim in the code so I assume we can use it;
+        makes it easy to define the layers anyway. This gets constructed upon
+        initialization so future calls to self.fit should remember this.
+            
+            sy_ytarg    (?,)
+            sy_ob_no    (?,3)
+            sy_h1       (?,32)
+            sy_final_na (?,1)
+        """
+        self.n_epochs    = n_epochs
+        self.lrate       = stepsize
+        self.sy_ytarg    = tf.placeholder(shape=[None], name="nnvf_y", dtype=tf.float32)
+        self.sy_ob_no    = tf.placeholder(shape=[None, ob_dim], name="nnvf_ob", dtype=tf.float32)
+        self.sy_h1       = lrelu(dense(self.sy_ob_no, 32, "nnvf_h1", weight_init=normc_initializer(1.0)))
+        self.sy_final_na = dense(self.sy_h1, 1, "nnvf_final", weight_init=normc_initializer(0.05))
+        self.sy_l2_error = tf.reduce_mean(tf.square(self.sy_final_na - self.sy_ytarg))
+        self.fit_op      = tf.train.AdamOptimizer(self.lrate).minimize(self.sy_l2_error)
+        print("\nself.sy_ytarg.shape = {}".format(self.sy_ytarg.get_shape()))
+        print("self.sy_ob_no.shape = {}".format(self.sy_ob_no.get_shape()))
+        print("self.sy_final_na.shape = {}".format(self.sy_final_na.get_shape()))
+        print("self.sy_l2_error.shape = {}\n".format(self.sy_l2_error.get_shape()))
+
+    def fit(self, X, y, session=None):
+        """ 
+        Updates weights (self.coef) with design matrix X (i.e. observations) and
+        targets (i.e. actual returns) y.  I think we need a session?
+        """
+        assert X.shape[0] == y.shape[0]
+        assert len(y.shape) == 1
+        Xp = self.preproc(X)
+        if session is not None:
+            # Does this make sense to use the n_epochs parameter?
+            inc = int(X.shape[0] / self.n_epochs)
+            for i in range(self.n_epochs):
+                session.run([self.fit_op,self.sy_final_na], 
+                            feed_dict={self.sy_ob_no:Xp[i*inc:(i+1)*inc],
+                                       self.sy_ytarg:y[i*inc:(i+1)*inc]
+                            })
+
+    def predict(self, X, session=None):
+        """ 
+        Predicts return from observations (i.e. environment states) X. I also
+        think we need a session here. No need to expand dimensions, BTW! It's
+        effectively already done for us elsewhere. ALSO, prediction returns
+        (batchsize,1) but we need to eliminate that last dimension.
+        """
+        if session is None:
+            return np.zeros(X.shape[0])
+        else:
+            Xp = self.preproc(X)
+            prediction = session.run(self.sy_final_na, feed_dict={self.sy_ob_no:Xp})
+            return np.squeeze(prediction)
+
+    def preproc(self, X):
+        """ I don't think we need this here. """
+        return X
 
 
 def lrelu(x, leak=0.2):
@@ -411,7 +469,10 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
         for path in paths:
             rew_t = path["reward"]
             return_t = discount(rew_t, gamma)
-            vpred_t = vf.predict(path["observation"])
+            if vf_type == 'linear':
+                vpred_t = vf.predict(path["observation"])
+            elif vf_type == 'nn':
+                vpred_t = vf.predict(path["observation"], session=sess)
             adv_t = return_t - vpred_t
             advs.append(adv_t)
             vtargs.append(return_t)
@@ -424,7 +485,10 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
         standardized_adv_n = (adv_n - adv_n.mean()) / (adv_n.std() + 1e-8)
         vtarg_n = np.concatenate(vtargs)
         vpred_n = np.concatenate(vpreds)
-        vf.fit(ob_no, vtarg_n)
+        if vf_type == 'linear':
+            vf.fit(ob_no, vtarg_n)
+        elif vf_type == 'nn':
+            vf.fit(ob_no, vtarg_n, session=sess)
 
         # Policy update. I _think_ this is how we get the old logstd.
         _, oldmean_na, oldlogstd_a = sess.run(
@@ -474,12 +538,15 @@ if __name__ == "__main__":
     """
 
     if 0:
+        # Part 0 (warm-up to ensure code is working)
         main_cartpole(logdir=None) # when you want to start collecting results, set the logdir
-    if 1:
-        general_params = dict(gamma=0.97, animate=False, min_timesteps_per_batch=2500, n_iter=300, initial_stepsize=1e-3)
-        more_params = dict(logdir='outputs/hw_part_1', seed=0, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params)
-        main_pendulum(**more_params) 
     if 0:
+        # Part 1, just testing Pendulum.
+        general_params = dict(gamma=0.97, animate=False, min_timesteps_per_batch=2500, n_iter=500, initial_stepsize=1e-3)
+        more_params = dict(logdir='outputs/part01_seed01', seed=1, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params)
+        main_pendulum(**more_params) 
+    if 1:
+        # Part 2, now comparing Pendulum with and without the neural network value function.
         general_params = dict(gamma=0.97, animate=False, min_timesteps_per_batch=2500, n_iter=300, initial_stepsize=1e-3)
         params = [
             dict(logdir='/tmp/ref/linearvf-kl2e-3-seed0', seed=0, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
@@ -489,6 +556,12 @@ if __name__ == "__main__":
             dict(logdir='/tmp/ref/linearvf-kl2e-3-seed2', seed=2, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
             dict(logdir='/tmp/ref/nnvf-kl2e-3-seed2', seed=2, desired_kl=2e-3, vf_type='nn', vf_params=dict(n_epochs=10, stepsize=1e-3), **general_params),
         ]
-        import multiprocessing
-        p = multiprocessing.Pool()
-        p.map(main_pendulum1, params)
+        # Actually, I can't get this work!
+        #import multiprocessing
+        #p = multiprocessing.Pool()
+        #p.map(main_pendulum1, params)
+
+        # Just do this instead, iterate through them.
+        #for p in params:
+        #    main_pendulum1(p)
+        main_pendulum1(params[1])
