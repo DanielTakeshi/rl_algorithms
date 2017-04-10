@@ -1,5 +1,5 @@
 import numpy as np
-np.set_printoptions(suppress=True, precision=5)
+np.set_printoptions(suppress=True, precision=5, edgeitems=10)
 import tensorflow as tf
 import tensorflow.contrib.distributions as distr
 import gym
@@ -40,6 +40,13 @@ def discount(x, gamma):
     out[i] = in[i] + gamma * in[i+1] + gamma^2 * in[i+2] + ...
     """
     return scipy.signal.lfilter([1],[1,-gamma],x[::-1], axis=0)[::-1]
+
+
+def lrelu(x, leak=0.2):
+    """ Performs a leaky ReLU operation. """
+    f1 = 0.5 * (1 + leak)
+    f2 = 0.5 * (1 - leak)
+    return f1 * x + f2 * abs(x)
 
 
 def explained_variance_1d(ypred,y):
@@ -114,18 +121,28 @@ class NnValueFunction(object):
             sy_ob_no    (?,3)
             sy_h1       (?,32)
             sy_final_na (?,1)
+            sy_ypred    (?,)
+            sy_sq_diff  (?,)
+
+        Edit: let's use the pre-processed version, with ob_dim*2+1 dimensions.
         """
         self.n_epochs    = n_epochs
         self.lrate       = stepsize
         self.sy_ytarg    = tf.placeholder(shape=[None], name="nnvf_y", dtype=tf.float32)
-        self.sy_ob_no    = tf.placeholder(shape=[None, ob_dim], name="nnvf_ob", dtype=tf.float32)
-        self.sy_h1       = lrelu(dense(self.sy_ob_no, 32, "nnvf_h1", weight_init=normc_initializer(1.0)))
-        self.sy_final_na = dense(self.sy_h1, 1, "nnvf_final", weight_init=normc_initializer(0.05))
-        self.sy_l2_error = tf.reduce_mean(tf.square(self.sy_final_na - self.sy_ytarg))
-        self.fit_op      = tf.train.AdamOptimizer(self.lrate).minimize(self.sy_l2_error)
+        self.sy_ob_no    = tf.placeholder(shape=[None, ob_dim*2+1], name="nnvf_ob", dtype=tf.float32)
+        self.sy_h1       = lrelu(dense(self.sy_ob_no, 32, "nnvf_h1", weight_init=normc_initializer(1.0)), leak=0.0)
+        self.sy_h2       = lrelu(dense(self.sy_h1, 32, "nnvf_h2", weight_init=normc_initializer(1.0)), leak=0.0)
+        self.sy_final_na = dense(self.sy_h2, 1, "nnvf_final", weight_init=normc_initializer(1.0))
+        self.sy_ypred    = tf.reshape(self.sy_final_na, [-1])
+        self.sy_sq_diff  = tf.square(self.sy_ypred - self.sy_ytarg)
+        self.sy_l2_error = tf.reduce_mean(self.sy_sq_diff)
+        self.fit_op      = tf.train.AdamOptimizer(1e-1).minimize(self.sy_l2_error)
+
+        # Debugging
         print("\nself.sy_ytarg.shape = {}".format(self.sy_ytarg.get_shape()))
         print("self.sy_ob_no.shape = {}".format(self.sy_ob_no.get_shape()))
         print("self.sy_final_na.shape = {}".format(self.sy_final_na.get_shape()))
+        print("self.sy_sq_diff.shape = {}".format(self.sy_sq_diff.get_shape()))
         print("self.sy_l2_error.shape = {}\n".format(self.sy_l2_error.get_shape()))
 
     def fit(self, X, y, session=None):
@@ -137,38 +154,29 @@ class NnValueFunction(object):
         assert len(y.shape) == 1
         Xp = self.preproc(X)
         if session is not None:
-            # Does this make sense to use the n_epochs parameter?
-            inc = int(X.shape[0] / self.n_epochs)
             for i in range(self.n_epochs):
-                session.run([self.fit_op,self.sy_final_na], 
-                            feed_dict={self.sy_ob_no:Xp[i*inc:(i+1)*inc],
-                                       self.sy_ytarg:y[i*inc:(i+1)*inc]
-                            })
+                _,err = session.run(
+                        [self.fit_op, self.sy_l2_error], 
+                        feed_dict={self.sy_ob_no: Xp,
+                                   self.sy_ytarg: y
+                        })
 
     def predict(self, X, session=None):
         """ 
-        Predicts return from observations (i.e. environment states) X. I also
+        Predicts returns from observations (i.e. environment states) X. I also
         think we need a session here. No need to expand dimensions, BTW! It's
-        effectively already done for us elsewhere. ALSO, prediction returns
-        (batchsize,1) but we need to eliminate that last dimension.
+        effectively already done for us elsewhere.
         """
         if session is None:
+            raise Exception("Error, shouldn't have a null session!")
             return np.zeros(X.shape[0])
         else:
             Xp = self.preproc(X)
-            prediction = session.run(self.sy_final_na, feed_dict={self.sy_ob_no:Xp})
-            return np.squeeze(prediction)
+            return session.run(self.sy_ypred, feed_dict={self.sy_ob_no:Xp})
 
     def preproc(self, X):
-        """ I don't think we need this here. """
-        return X
-
-
-def lrelu(x, leak=0.2):
-    """ Performs a leaky ReLU operation. """
-    f1 = 0.5 * (1 + leak)
-    f2 = 0.5 * (1 - leak)
-    return f1 * x + f2 * abs(x)
+        """ Let's add this here to increase dimensionality. """
+        return np.concatenate([np.ones([X.shape[0], 1]), X, np.square(X)/2.0], axis=1)
 
 
 def main_cartpole(n_iter=100, gamma=1.0, min_timesteps_per_batch=1000, 
@@ -419,7 +427,8 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
     sy_stepsize = tf.placeholder(shape=[], dtype=tf.float32) 
     update_op   = tf.train.AdamOptimizer(sy_stepsize).minimize(sy_surr)
 
-    sess = tf.Session()
+    tf_config = tf.ConfigProto(inter_op_parallelism_threads=1, intra_op_parallelism_threads=1) 
+    sess = tf.Session(config=tf_config)
     sess.__enter__() # equivalent to `with sess:`
     tf.global_variables_initializer().run() #pylint: disable=E1101
     total_timesteps = 0
@@ -521,11 +530,17 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
         logz.log_tabular("KLOldNew", kl)
         logz.log_tabular("Entropy", ent)
         logz.log_tabular("EVBefore", explained_variance_1d(vpred_n, vtarg_n))
-        logz.log_tabular("EVAfter", explained_variance_1d(vf.predict(ob_no), vtarg_n))
+        if vf_type == 'linear':
+            logz.log_tabular("EVAfter", explained_variance_1d(vf.predict(ob_no), vtarg_n))
+        elif vf_type == 'nn':
+            logz.log_tabular("EVAfter", explained_variance_1d(vf.predict(ob_no,session=sess), vtarg_n))
         logz.log_tabular("TimestepsSoFar", total_timesteps)
         # If you're overfitting, EVAfter will be way larger than EVBefore.
         # Note that we fit value function AFTER using it to compute the advantage function to avoid introducing bias
         logz.dump_tabular()
+
+    # Daniel: adding this to enable a for loop.
+    tf.reset_default_graph()
 
 
 def main_pendulum1(d):
@@ -547,14 +562,15 @@ if __name__ == "__main__":
         main_pendulum(**more_params) 
     if 1:
         # Part 2, now comparing Pendulum with and without the neural network value function.
-        general_params = dict(gamma=0.97, animate=False, min_timesteps_per_batch=2500, n_iter=300, initial_stepsize=1e-3)
+        head = 'outputs/part02/'
+        general_params = dict(gamma=0.97, animate=False, min_timesteps_per_batch=2500, n_iter=500, initial_stepsize=1e-3)
         params = [
-            dict(logdir='/tmp/ref/linearvf-kl2e-3-seed0', seed=0, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
-            dict(logdir='/tmp/ref/nnvf-kl2e-3-seed0', seed=0, desired_kl=2e-3, vf_type='nn', vf_params=dict(n_epochs=10, stepsize=1e-3), **general_params),
-            dict(logdir='/tmp/ref/linearvf-kl2e-3-seed1', seed=1, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
-            dict(logdir='/tmp/ref/nnvf-kl2e-3-seed1', seed=1, desired_kl=2e-3, vf_type='nn', vf_params=dict(n_epochs=10, stepsize=1e-3), **general_params),
-            dict(logdir='/tmp/ref/linearvf-kl2e-3-seed2', seed=2, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
-            dict(logdir='/tmp/ref/nnvf-kl2e-3-seed2', seed=2, desired_kl=2e-3, vf_type='nn', vf_params=dict(n_epochs=10, stepsize=1e-3), **general_params),
+            dict(logdir=head+'linearvf-kl2e-3-seed0', seed=0, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
+            dict(logdir=head+'nnvf-kl2e-3-seed0',     seed=0, desired_kl=2e-3, vf_type='nn', vf_params=dict(n_epochs=50, stepsize=1e-3), **general_params),
+            dict(logdir=head+'linearvf-kl2e-3-seed1', seed=1, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
+            dict(logdir=head+'nnvf-kl2e-3-seed1',     seed=1, desired_kl=2e-3, vf_type='nn', vf_params=dict(n_epochs=50, stepsize=1e-3), **general_params),
+            dict(logdir=head+'linearvf-kl2e-3-seed2', seed=2, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
+            dict(logdir=head+'nnvf-kl2e-3-seed2',     seed=2, desired_kl=2e-3, vf_type='nn', vf_params=dict(n_epochs=50, stepsize=1e-3), **general_params),
         ]
         # Actually, I can't get this work!
         #import multiprocessing
@@ -562,6 +578,5 @@ if __name__ == "__main__":
         #p.map(main_pendulum1, params)
 
         # Just do this instead, iterate through them.
-        #for p in params:
-        #    main_pendulum1(p)
-        main_pendulum1(params[1])
+        for p in params:
+            main_pendulum1(p)
