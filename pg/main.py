@@ -111,7 +111,7 @@ class LinearValueFunction(object):
 class NnValueFunction(object):
     """ Estimates the baseline function for PGs via neural network. """
 
-    def __init__(self, ob_dim=None, n_epochs=10, stepsize=1e-3):
+    def __init__(self, session, ob_dim=None, n_epochs=10, stepsize=1e-3):
         """ 
         They provide us with an ob_dim in the code so I assume we can use it;
         makes it easy to define the layers anyway. This gets constructed upon
@@ -144,6 +144,7 @@ class NnValueFunction(object):
         print("self.sy_final_na.shape = {}".format(self.sy_final_na.get_shape()))
         print("self.sy_sq_diff.shape = {}".format(self.sy_sq_diff.get_shape()))
         print("self.sy_l2_error.shape = {}\n".format(self.sy_l2_error.get_shape()))
+        self.sess = session
 
     def fit(self, X, y, session=None):
         """ 
@@ -153,26 +154,21 @@ class NnValueFunction(object):
         assert X.shape[0] == y.shape[0]
         assert len(y.shape) == 1
         Xp = self.preproc(X)
-        if session is not None:
-            for i in range(self.n_epochs):
-                _,err = session.run(
-                        [self.fit_op, self.sy_l2_error], 
-                        feed_dict={self.sy_ob_no: Xp,
-                                   self.sy_ytarg: y
-                        })
+        for i in range(self.n_epochs):
+            _,err = self.sess.run(
+                    [self.fit_op, self.sy_l2_error], 
+                    feed_dict={self.sy_ob_no: Xp,
+                               self.sy_ytarg: y
+                    })
 
-    def predict(self, X, session=None):
+    def predict(self, X):
         """ 
         Predicts returns from observations (i.e. environment states) X. I also
         think we need a session here. No need to expand dimensions, BTW! It's
         effectively already done for us elsewhere.
         """
-        if session is None:
-            raise Exception("Error, shouldn't have a null session!")
-            return np.zeros(X.shape[0])
-        else:
-            Xp = self.preproc(X)
-            return session.run(self.sy_ypred, feed_dict={self.sy_ob_no:Xp})
+        Xp = self.preproc(X)
+        return self.sess.run(self.sy_ypred, feed_dict={self.sy_ob_no:Xp})
 
     def preproc(self, X):
         """ Let's add this here to increase dimensionality. """
@@ -365,24 +361,22 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
     sy_mean_na (output of the net) is a symbolic variable and thus NOT a
     parameter, but logstd_a IS a parameter. The log is useful so we can directly
     use it when computing log probs.
-
-    For managing the distribution, I'm using tf.contrib.distributions. We can
-    call the sample() method which will give us a tensor (I think a symbolic
-    variable). We _can_ put in a batch of means/stdevs into the distribution,
-    and when we sample from it, we'll get one sample per item in the batch.
-    However, I'm confused about if we have to provide the same standard
-    deviation value for each? That seems the only way to do things.
     """
+
     tf.set_random_seed(seed)
     np.random.seed(seed)
     env = gym.make("Pendulum-v0")
     ob_dim = env.observation_space.shape[0]
     ac_dim = env.action_space.shape[0]
     logz.configure_output_dir(logdir)
+
+    # Create `sess` here so that we can pass it to the NN value function.
+    tf_config = tf.ConfigProto(inter_op_parallelism_threads=1, intra_op_parallelism_threads=1) 
+    sess = tf.Session(config=tf_config)
     if vf_type == 'linear':
         vf = LinearValueFunction(**vf_params)
     elif vf_type == 'nn':
-        vf = NnValueFunction(ob_dim=ob_dim, **vf_params)
+        vf = NnValueFunction(session=sess, ob_dim=ob_dim, **vf_params)
 
     # This is still part of the parameters! It's not symbolic, of course.  The
     # homework in the class website uses an outdated API, w/out `()` at the end.
@@ -426,9 +420,7 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
     sy_surr     = - tf.reduce_mean(sy_adv_n * sy_logprob_n) 
     sy_stepsize = tf.placeholder(shape=[], dtype=tf.float32) 
     update_op   = tf.train.AdamOptimizer(sy_stepsize).minimize(sy_surr)
-
-    tf_config = tf.ConfigProto(inter_op_parallelism_threads=1, intra_op_parallelism_threads=1) 
-    sess = tf.Session(config=tf_config)
+    
     sess.__enter__() # equivalent to `with sess:`
     tf.global_variables_initializer().run() #pylint: disable=E1101
     total_timesteps = 0
@@ -478,10 +470,7 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
         for path in paths:
             rew_t = path["reward"]
             return_t = discount(rew_t, gamma)
-            if vf_type == 'linear':
-                vpred_t = vf.predict(path["observation"])
-            elif vf_type == 'nn':
-                vpred_t = vf.predict(path["observation"], session=sess)
+            vpred_t = vf.predict(path["observation"])
             adv_t = return_t - vpred_t
             advs.append(adv_t)
             vtargs.append(return_t)
@@ -494,10 +483,7 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
         standardized_adv_n = (adv_n - adv_n.mean()) / (adv_n.std() + 1e-8)
         vtarg_n = np.concatenate(vtargs)
         vpred_n = np.concatenate(vpreds)
-        if vf_type == 'linear':
-            vf.fit(ob_no, vtarg_n)
-        elif vf_type == 'nn':
-            vf.fit(ob_no, vtarg_n, session=sess)
+        vf.fit(ob_no, vtarg_n)
 
         # Policy update. I _think_ this is how we get the old logstd.
         _, oldmean_na, oldlogstd_a = sess.run(
@@ -530,10 +516,7 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
         logz.log_tabular("KLOldNew", kl)
         logz.log_tabular("Entropy", ent)
         logz.log_tabular("EVBefore", explained_variance_1d(vpred_n, vtarg_n))
-        if vf_type == 'linear':
-            logz.log_tabular("EVAfter", explained_variance_1d(vf.predict(ob_no), vtarg_n))
-        elif vf_type == 'nn':
-            logz.log_tabular("EVAfter", explained_variance_1d(vf.predict(ob_no,session=sess), vtarg_n))
+        logz.log_tabular("EVAfter", explained_variance_1d(vf.predict(ob_no), vtarg_n))
         logz.log_tabular("TimestepsSoFar", total_timesteps)
         # If you're overfitting, EVAfter will be way larger than EVBefore.
         # Note that we fit value function AFTER using it to compute the advantage function to avoid introducing bias
@@ -548,9 +531,7 @@ def main_pendulum1(d):
 
 
 if __name__ == "__main__":
-    """ 
-    TODO: get this better-organized with a few arg-parses, etc.
-    """
+    """  This needs to be better-organized with a few arg-parses, etc. """
 
     if 0:
         # Part 0 (warm-up to ensure code is working)
@@ -571,6 +552,8 @@ if __name__ == "__main__":
             dict(logdir=head+'nnvf-kl2e-3-seed1',     seed=1, desired_kl=2e-3, vf_type='nn', vf_params=dict(n_epochs=50, stepsize=1e-3), **general_params),
             dict(logdir=head+'linearvf-kl2e-3-seed2', seed=2, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
             dict(logdir=head+'nnvf-kl2e-3-seed2',     seed=2, desired_kl=2e-3, vf_type='nn', vf_params=dict(n_epochs=50, stepsize=1e-3), **general_params),
+            dict(logdir=head+'linearvf-kl2e-3-seed3', seed=3, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
+            dict(logdir=head+'nnvf-kl2e-3-seed3',     seed=3, desired_kl=2e-3, vf_type='nn', vf_params=dict(n_epochs=50, stepsize=1e-3), **general_params),
         ]
         # Actually, I can't get this work!
         #import multiprocessing

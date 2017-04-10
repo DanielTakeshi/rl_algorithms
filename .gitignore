@@ -4,3 +4,4 @@
 .DS_Store
 il/data/*
 il/results/*
+pg/outputs/*/a.diff
