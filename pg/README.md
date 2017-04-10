@@ -15,12 +15,18 @@ Here's the next part, with the neural network value function:
 
 ![part02](figures/part_02.png?raw=true)
 
-Yeah, let me analyze this later when I have time.
+And here are the averages of these, so I took the average of the three linear
+ones, and the three NN ones:
+
+![part02_smoothed](figures/part_02_smooth.png?raw=true)
+
+It looks like the neural network one is actually good!
 
 TODO for plotting and the actual code:
 
-- Better analysis (not for code but for plotting)
+- Better analysis (not for code but for plotting), e.g. with error bars/regions.
 - See what happens if the log stdev is the output of our network
 - Also, what about using just tensorflow's basic Gaussians, not the
   contrib.distributions, which technically isn't supported.
-- TRPO!!! Coming soon!
+- List the hyperparameters that I used.
+- NPG, TRPO, etc.? I hope I can get to these.
