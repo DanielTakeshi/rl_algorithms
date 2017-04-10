@@ -2,7 +2,10 @@
 To plot this, you need to provide the experiment directory. For the first part,
 which is just plotting performnace, do (at least on my laptop):
 
-python plot_learning_curves.py outputs/
+python plot_learning_curves.py outputs/part01/
+python plot_learning_curves.py outputs/part02/
+
+Though I had to change things a bit for the second one manually.
 """
 import argparse
 import sys
@@ -28,11 +31,12 @@ for dirname in dirnames:
     axes[1].plot(x, A['KLOldNew'], '-', lw=lw)
     axes[2].plot(x, A['Entropy'], '-', lw=lw)
     axes[3].plot(x, A['EVBefore'], '-', lw=lw)
-legend(dirnames,loc='best').draggable()
+legend(dirnames,loc='best',ncol=2).draggable()
 axes[0].set_ylabel("EpRewMean")
 axes[1].set_ylabel("KLOldNew")
 axes[2].set_ylabel("Entropy")
 axes[3].set_ylabel("EVBefore")
 axes[3].set_ylim(-1,1)
 axes[-1].set_xlabel("Iterations")
-fig.savefig("figures/part_01.png")
+#fig.savefig("figures/part_01.png")
+fig.savefig("figures/part_02.png")
