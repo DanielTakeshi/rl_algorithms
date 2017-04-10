@@ -33,8 +33,11 @@ fig, axes = subplots(4, figsize=(12,10))
 
 # Try to handle the smoothed case separately. It's a bit ugly.
 if args.smooth:
-    niter = 500
-    n = 4
+    if 'cartpole' in args.expdir:
+        niter = 100
+    elif 'pendulum' in args.expdir:
+        niter = 500
+    n = 3
     colors = ['gold', 'midnightblue']
 
     avgx_lin = np.zeros(niter,)
