@@ -34,7 +34,7 @@ fig, axes = subplots(4, figsize=(12,10))
 # Try to handle the smoothed case separately. It's a bit ugly.
 if args.smooth:
     niter = 500
-    n = 3
+    n = 4
     colors = ['gold', 'midnightblue']
 
     avgx_lin = np.zeros(niter,)

@@ -15,12 +15,14 @@ Here's the next part, with the neural network value function:
 
 ![part02](figures/part_02.png?raw=true)
 
-And here are the averages of these, so I took the average of the three linear
-ones, and the three NN ones:
+And here are the averages of these, so I took the average of the four linear
+ones, and the four NN ones:
 
 ![part02_smoothed](figures/part_02_smooth.png?raw=true)
 
-It looks like the neural network one is actually good!
+Ack, is the NN even that much better? It looks like it can explain the variance
+slightly better (since, well, it *is* a neural network) but the performance is
+not noticeably better. Maybe the problem isn't hard enough?
 
 TODO for plotting and the actual code:
 
