@@ -8,6 +8,28 @@ import scipy.signal
 import sys
 
 
+def gauss_log_prob(mu, logstd, x):
+    """ Used for computing the log probability, following the formula for the
+    multivariate Gaussian density. All the inputs should have shape (n,a). The
+    `gp` contains the log probabilities for each of the dimensions of a to get
+    (n,) as the result. This should generalize to a>1 but it doesn't generalize
+    to non-diagonal covariance matrices.
+    """
+    var = tf.exp(2*logstd)
+    gp = -tf.square(x - mu)/(2*var) - .5*tf.log(tf.constant(2*np.pi)) - logstd
+    return tf.reduce_sum(gp, [1])
+
+
+def gauss_KL(mu1, logstd1, mu2, logstd2, d):
+    """ Returns KL divergence among two multivariate Gaussians, component-wise.
+    Must assume diagonal matrix. All other inputs are shape (n,a). """
+    var1 = tf.exp(2*logstd1)
+    var2 = tf.exp(2*logstd2)
+    kl_n = tf.reduce_sum(0.5*logstd2 - 0.5*logstd1 + (var1 + tf.square(mu1-mu2))/(2*var2) - 0.5*d, 
+                         axis=[1]) 
+    return kl_n
+
+
 def normc_initializer(std=1.0):
     """ Initialize array with normalized columns """
     def _initializer(shape, dtype=None, partition_info=None): #pylint: disable=W0613
@@ -134,15 +156,13 @@ class NnValueFunction(object):
         self.sy_h2       = lrelu(dense(self.sy_h1, 32, "nnvf_h2", weight_init=normc_initializer(1.0)), leak=0.0)
         self.sy_final_na = dense(self.sy_h2, 1, "nnvf_final", weight_init=normc_initializer(1.0))
         self.sy_ypred    = tf.reshape(self.sy_final_na, [-1])
-        self.sy_sq_diff  = tf.square(self.sy_ypred - self.sy_ytarg)
-        self.sy_l2_error = tf.reduce_mean(self.sy_sq_diff)
-        self.fit_op      = tf.train.AdamOptimizer(1e-1).minimize(self.sy_l2_error)
+        self.sy_l2_error = tf.reduce_mean(tf.square(self.sy_ypred - self.sy_ytarg))
+        self.fit_op      = tf.train.AdamOptimizer(stepsize).minimize(self.sy_l2_error)
 
-        # Debugging
+        # Debugging. Then have a session here.
         print("\nself.sy_ytarg.shape = {}".format(self.sy_ytarg.get_shape()))
         print("self.sy_ob_no.shape = {}".format(self.sy_ob_no.get_shape()))
         print("self.sy_final_na.shape = {}".format(self.sy_final_na.get_shape()))
-        print("self.sy_sq_diff.shape = {}".format(self.sy_sq_diff.get_shape()))
         print("self.sy_l2_error.shape = {}\n".format(self.sy_l2_error.get_shape()))
         self.sess = session
 
@@ -175,8 +195,9 @@ class NnValueFunction(object):
         return np.concatenate([np.ones([X.shape[0], 1]), X, np.square(X)/2.0], axis=1)
 
 
-def main_cartpole(n_iter=100, gamma=1.0, min_timesteps_per_batch=1000, 
-                  stepsize=1e-2, animate=True, logdir=None):
+def main_cartpole(n_iter=100, gamma=1.0, seed=0, min_timesteps_per_batch=1000, 
+                  stepsize=1e-2, animate=True, vf_type='linear', vf_params=None, 
+                  logdir=None):
     """ Runs vanilla policy gradient on the classic CartPole task.
 
     Symbolic variables have the prefix sy_, to distinguish them from the
@@ -214,11 +235,20 @@ def main_cartpole(n_iter=100, gamma=1.0, min_timesteps_per_batch=1000,
         animate: Whether to render it in OpenAI gym.
         logdir: Output directory for logging. If None, store to a random place.
     """
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
     env = gym.make("CartPole-v0")
     ob_dim = env.observation_space.shape[0]
     num_actions = env.action_space.n
     logz.configure_output_dir(logdir)
-    vf = LinearValueFunction()
+
+    # Create `sess` here so that we can pass it to the NN value function.
+    tf_config = tf.ConfigProto(inter_op_parallelism_threads=1, intra_op_parallelism_threads=1) 
+    sess = tf.Session(config=tf_config)
+    if vf_type == 'linear':
+        vf = LinearValueFunction(**vf_params)
+    elif vf_type == 'nn':
+        vf = NnValueFunction(session=sess, ob_dim=ob_dim, **vf_params)
 
     # Symbolic variables as covered in the method documentation:
     sy_ob_no        = tf.placeholder(shape=[None, ob_dim], name="ob", dtype=tf.float32)
@@ -247,13 +277,8 @@ def main_cartpole(n_iter=100, gamma=1.0, min_timesteps_per_batch=1000,
     sy_stepsize = tf.placeholder(shape=[], dtype=tf.float32) 
     update_op = tf.train.AdamOptimizer(sy_stepsize).minimize(sy_surr)
 
-    # use single thread. on such a small problem, multithreading gives you a slowdown
-    # this way, we can better use multiple cores for different experiments
-    tf_config = tf.ConfigProto(inter_op_parallelism_threads=1, intra_op_parallelism_threads=1) 
-    sess = tf.Session(config=tf_config)
     sess.__enter__() # equivalent to `with sess:`
     tf.global_variables_initializer().run() #pylint: disable=E1101
-
     total_timesteps = 0
 
     for i in range(n_iter):
@@ -329,6 +354,9 @@ def main_cartpole(n_iter=100, gamma=1.0, min_timesteps_per_batch=1000,
         # Note that we fit value function AFTER using it to compute the advantage function to avoid introducing bias
         logz.dump_tabular()
 
+    # Daniel: adding this to enable a for loop.
+    tf.reset_default_graph()
+
 
 def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch, 
                   initial_stepsize, desired_kl, vf_type, vf_params, animate=False):
@@ -339,7 +367,7 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
     The following are for both the gradient and the policy:
 
       sy_ob_no:       batch of observations, both for PG computation AND running policy
-      sy_h1:          hidden layer (before this: input -> dense -> relu)
+      sy_h1/sy_h2:    both are hidden layers with leaky-relus.
       sy_mean_na:     final net output (like sy_logits_na from earlier), mean of a Gaussian
       sy_n:           clever way to obtain the batch size (or 1, for running policy)
 
@@ -353,14 +381,12 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
       sy_adv_n:       advantage function estimate (one per action vector)
       sy_logprob_n:   log-prob of actions taken in the batch, for PG computation
 
-    Here's the idea. Our parameters consists of (neural network weights, log std
-    vector). The policy network will output the _mean_ of a Gaussian, NOT our
-    actual action. Then the next set of parameters is the log std. Those two
-    (the mean and log std) together define a distribution which we then sample
-    from to get the actual action vector the agent plays. Tricky: realize that
-    sy_mean_na (output of the net) is a symbolic variable and thus NOT a
-    parameter, but logstd_a IS a parameter. The log is useful so we can directly
-    use it when computing log probs.
+    Our parameters consists of (neural network weights, log std vector). The
+    policy network will output the _mean_ of a Gaussian, NOT our actual action.
+    Then the next set of parameters is the log std. Those two (the mean and log
+    std) together define a distribution which we then sample from to get the
+    actual action vector the agent plays. The net output, sy_mean_na, is a
+    symbolic variable and thus NOT a parameter, but logstd_a IS a parameter.
     """
 
     tf.set_random_seed(seed)
@@ -378,8 +404,7 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
     elif vf_type == 'nn':
         vf = NnValueFunction(session=sess, ob_dim=ob_dim, **vf_params)
 
-    # This is still part of the parameters! It's not symbolic, of course.  The
-    # homework in the class website uses an outdated API, w/out `()` at the end.
+    # This is still part of the parameters! I'm not setting it sy_ here.
     logstd_a       = tf.get_variable("logstdev", [ac_dim], initializer=tf.zeros_initializer())
     sy_oldlogstd_a = tf.placeholder(name="oldlogstdev", shape=[ac_dim], dtype=tf.float32)
 
@@ -388,35 +413,22 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
     sy_ac_na      = tf.placeholder(shape=[None, ac_dim], name="ac", dtype=tf.float32) 
     sy_adv_n      = tf.placeholder(shape=[None], name="adv", dtype=tf.float32)
     sy_h1         = lrelu(dense(sy_ob_no, 32, "h1", weight_init=normc_initializer(1.0)))
-    sy_mean_na    = dense(sy_h1, ac_dim, "mean", weight_init=normc_initializer(0.05))
+    sy_h2         = lrelu(dense(sy_h1,    32, "h2", weight_init=normc_initializer(1.0)))
+    sy_mean_na    = dense(sy_h2, ac_dim, "mean", weight_init=normc_initializer(0.05))
     sy_oldmean_na = tf.placeholder(shape=[None, ac_dim], name='oldmean', dtype=tf.float32)
     sy_n          = tf.shape(sy_ob_no)[0]
 
-    # Set up the Gaussian distribution. It's not a symbolic variable, I think.
-    # Maybe explicitly compute the log prob? It might more numerically stable.
-    # However, this should work due to the shared logstd_a. In addition, the
-    # batch mode lets us encode multiple distributions in gauss_policy.
-    # Note: sy_n will be either 1 (if running policy) or n (if training).
-    # Note: sy_sampled_ac uses [0] b/c sy_mean_na would be [[-- a --]] and thus
-    # the gauss_policy.sample() also "looks like" [[-- a --]].
-    # Note: adding a small epsilon to the log to prevent extremely low #s.
-    std_batch     = tf.ones(shape=(sy_n,ac_dim), dtype=tf.float32) * tf.exp(logstd_a)
-    gauss_policy  = distr.MultivariateNormalDiag(mu=sy_mean_na, diag_stdev=std_batch)
-    sy_sampled_ac = gauss_policy.sample()[0] 
-    sy_logprob_n  = tf.log(gauss_policy.pdf(sy_ac_na) + 1e-8)
+    # Exponentiate and make a batch version so that we get shape (n,a) and not (a,).
+    sy_logstd_na    = tf.ones(shape=(sy_n,ac_dim), dtype=tf.float32) * logstd_a
+    sy_logoldstd_na = tf.ones(shape=(sy_n,ac_dim), dtype=tf.float32) * sy_oldlogstd_a
 
-    # The following quantities are used for computing KL and entropy. For
-    # entropy, it's differential entropy and that has a closed-form solution,
-    # involving the determinant (product of diagonal elements). Be careful not
-    # to get confused between the logstd vs. std vs. variance terms!!
-    old_std_batch    = tf.ones(shape=(sy_n,ac_dim), dtype=tf.float32) * tf.exp(sy_oldlogstd_a)
-    old_gauss_policy = distr.MultivariateNormalDiag(mu=sy_oldmean_na, diag_stdev=old_std_batch)
-    sy_kl            = tf.reduce_mean(distr.kl(old_gauss_policy, gauss_policy))
-    sy_determinant   = tf.reduce_prod(tf.exp(logstd_a)) 
-    sy_ent           = 0.5 * tf.log((2.*np.pi*np.e)**ac_dim * sy_determinant)
+    # Set up the Gaussian distribution stuff, plus diagnostics.
+    sy_logprob_n  = gauss_log_prob(sy_mean_na, sy_logstd_na, sy_ac_na)
+    sy_sampled_ac = (tf.random_normal(tf.shape(sy_mean_na)) * tf.exp(sy_logstd_na) + sy_mean_na)[0]
+    sy_kl         = tf.reduce_mean(gauss_KL(sy_mean_na, logstd_a, sy_oldmean_na, sy_oldlogstd_a, ac_dim))
+    sy_ent        = 0.5 * ac_dim * tf.log(2.*np.pi*np.e) + 0.5 * tf.reduce_sum(logstd_a)
 
     # sy_surr: loss function that we'll differentiate to get the policy gradient
-    # sy_stepsize: symbolic, to change the stepsize during optimization if desired
     sy_surr     = - tf.reduce_mean(sy_adv_n * sy_logprob_n) 
     sy_stepsize = tf.placeholder(shape=[], dtype=tf.float32) 
     update_op   = tf.train.AdamOptimizer(sy_stepsize).minimize(sy_surr)
@@ -429,10 +441,10 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
     # Debugging.
     print("\nsy_ac_na.shape = {}".format(sy_ac_na.get_shape())) # (?,adim)
     print("sy_mean_na.shape = {}".format(sy_mean_na.get_shape())) # (?,adim)
-    print("std_batch.shape = {}".format(std_batch.get_shape())) # (?,adim)
-    print("tf.exp(logstd_a).shape = {}".format(tf.exp(logstd_a).get_shape())) # (adim,)
-    print("sy_sampled_ac.shape = {}".format(sy_sampled_ac.get_shape())) # (adim,)
+    print("logstd_a.shape = {}".format(logstd_a.get_shape())) # (adim,)
+    print("sy_logstd_na.shape = {}".format(sy_logstd_na.get_shape())) # (?,adim)
     print("sy_logprob_n.shape = {}".format(sy_logprob_n.get_shape())) # (?,)
+    print("sy_sampled_ac.shape = {}".format(sy_sampled_ac.get_shape())) # (adim,)
     print("sy_kl.shape = {}".format(sy_kl.get_shape())) # ()
     print("sy_ent.shape = {}\n".format(sy_ent.get_shape())) # ()
 
@@ -526,6 +538,10 @@ def main_pendulum(logdir, seed, n_iter, gamma, min_timesteps_per_batch,
     tf.reset_default_graph()
 
 
+def main_cartpole1(d):
+    return main_cartpole(**d)
+
+
 def main_pendulum1(d):
     return main_pendulum(**d)
 
@@ -539,11 +555,25 @@ if __name__ == "__main__":
     if 0:
         # Part 1, just testing Pendulum.
         general_params = dict(gamma=0.97, animate=False, min_timesteps_per_batch=2500, n_iter=500, initial_stepsize=1e-3)
-        more_params = dict(logdir='outputs/part01_seed01', seed=1, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params)
+        more_params = dict(logdir=None, seed=1, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params)
         main_pendulum(**more_params) 
     if 1:
+        # Part 2, now comparing Cartpole with and without the neural network value function.
+        head = 'outputs/cartpole/'
+        general_params = dict(gamma=1.0, animate=False, min_timesteps_per_batch=1000, n_iter=100, stepsize=1e-2)
+        params = [
+            dict(logdir=head+'linearvf-seed0', seed=0, vf_type='linear', vf_params={}, **general_params),
+            dict(logdir=head+'nnvf-seed0',     seed=0, vf_type='nn', vf_params=dict(n_epochs=50, stepsize=1e-3), **general_params),
+            dict(logdir=head+'linearvf-seed1', seed=1, vf_type='linear', vf_params={}, **general_params),
+            dict(logdir=head+'nnvf-seed1',     seed=1, vf_type='nn', vf_params=dict(n_epochs=50, stepsize=1e-3), **general_params),
+            dict(logdir=head+'linearvf-seed2', seed=2, vf_type='linear', vf_params={}, **general_params),
+            dict(logdir=head+'nnvf-seed2',     seed=2, vf_type='nn', vf_params=dict(n_epochs=50, stepsize=1e-3), **general_params),
+        ]
+        for p in params:
+            main_cartpole1(p)
+    if 0:
         # Part 2, now comparing Pendulum with and without the neural network value function.
-        head = 'outputs/part02/'
+        head = 'outputs/pendulum/'
         general_params = dict(gamma=0.97, animate=False, min_timesteps_per_batch=2500, n_iter=500, initial_stepsize=1e-3)
         params = [
             dict(logdir=head+'linearvf-kl2e-3-seed0', seed=0, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
@@ -552,8 +582,6 @@ if __name__ == "__main__":
             dict(logdir=head+'nnvf-kl2e-3-seed1',     seed=1, desired_kl=2e-3, vf_type='nn', vf_params=dict(n_epochs=50, stepsize=1e-3), **general_params),
             dict(logdir=head+'linearvf-kl2e-3-seed2', seed=2, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
             dict(logdir=head+'nnvf-kl2e-3-seed2',     seed=2, desired_kl=2e-3, vf_type='nn', vf_params=dict(n_epochs=50, stepsize=1e-3), **general_params),
-            dict(logdir=head+'linearvf-kl2e-3-seed3', seed=3, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
-            dict(logdir=head+'nnvf-kl2e-3-seed3',     seed=3, desired_kl=2e-3, vf_type='nn', vf_params=dict(n_epochs=50, stepsize=1e-3), **general_params),
         ]
         # Actually, I can't get this work!
         #import multiprocessing
