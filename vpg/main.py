@@ -1,13 +1,13 @@
 """
 Vanilla Policy Gradients.
 
-Usage:
+For usage, to quickly test, use:
 
-    TBA
+    python main.py Pendulum-v0 --vf_type nn --do_not_save --render
 
-Tested on:
+For saving, see the bsah scripts. Successfully tested on:
 
-    TBA
+    Pendulum-v0
 
 (c) April 2017 by Daniel Seita. This code is built upon starter code from
 Berkeley CS 294-112.
@@ -463,6 +463,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument('envname', type=str)
     p.add_argument('--render', action='store_true')
+    p.add_argument('--do_not_save', action='store_true')
     p.add_argument('--seed', type=int, default=0)
     p.add_argument('--desired_kl', type=float, default=2e-3)
     p.add_argument('--gamma', type=float, default=0.97)
@@ -482,4 +483,6 @@ if __name__ == "__main__":
         outstr = 'nnvf-kl' +str(args.desired_kl)
     outstr += '-seed' +str(args.seed).zfill(2)
     logdir = 'outputs/' +args.envname+ '/' +outstr
+    if args.do_not_save:
+        logdir = None
     vpg_continuous(logdir, args, vf_params)

@@ -27,7 +27,7 @@ And now the smoothed versions:
 ![Pendulum-v0_sm](figures/Pendulum-v0_sm.png?raw=true)
 
 I think it looks OK. Pendulum is a bit tricky to solve because it requires an
-adaptive learning rate but I still get close to zero (the theoretically optimal
-solution, I think, but even TRPO can only get -100 or so). The neural network is
-only slightly better because the problem is so simple. The action dimension is
-just one.
+adaptive learning rate but I still get close to about -100 or so. I'm not sure
+what the theoretical best solution is; maybe zero, but that seems impossible.
+The neural network is only slightly better with these results because the
+problem is so simple. The action dimension is just one.
