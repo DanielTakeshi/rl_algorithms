@@ -82,12 +82,6 @@ class NnValueFunction(object):
         self.sy_ypred    = tf.reshape(self.sy_final_na, [-1])
         self.sy_l2_error = tf.reduce_mean(tf.square(self.sy_ypred - self.sy_ytarg))
         self.fit_op      = tf.train.AdamOptimizer(stepsize).minimize(self.sy_l2_error)
-
-        # Debugging. Then have a session here.
-        print("\nself.sy_ytarg.shape = {}".format(self.sy_ytarg.get_shape()))
-        print("self.sy_ob_no.shape = {}".format(self.sy_ob_no.get_shape()))
-        print("self.sy_final_na.shape = {}".format(self.sy_final_na.get_shape()))
-        print("self.sy_l2_error.shape = {}\n".format(self.sy_l2_error.get_shape()))
         self.sess = session
 
     def fit(self, X, y, session=None):
@@ -376,7 +370,7 @@ def vpg_continuous(logdir, args, vf_params):
             ob = env.reset()
             terminated = False
             obs, acs, rewards = [], [], []
-            animate_this_episode = (len(paths)==0 and (i%10 == 0) and args.render)
+            animate_this_episode = (len(paths) == 0 and (i%20 == 0) and args.render)
             while True:
                 if animate_this_episode:
                     env.render()
@@ -485,4 +479,5 @@ if __name__ == "__main__":
     logdir = 'outputs/' +args.envname+ '/' +outstr
     if args.do_not_save:
         logdir = None
+
     vpg_continuous(logdir, args, vf_params)
