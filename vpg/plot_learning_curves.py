@@ -13,7 +13,7 @@ python plot_learning_curves.py outputs/Pendulum-v0 --out figures/Pendulum-v0_sm.
 
 (Don't forget to add `sm` to the figure name!)
 
-Do this for each environment tested.
+Do this for each environment tested, e.g. with Hopper-v1 as well.
 """
 
 import argparse
@@ -35,6 +35,8 @@ dirnames = os.listdir(args.expdir)
 niter = args.niter
 if 'Pendulum-v0' in args.expdir:
     niter = 500
+if 'Hopper-v1' in args.expdir:
+    niter = 3000
 print("dirnames:\n{}".format(dirnames))
 print("niter: {}".format(niter))
 

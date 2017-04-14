@@ -31,3 +31,19 @@ adaptive learning rate but I still get close to about -100 or so. I'm not sure
 what the theoretical best solution is; maybe zero, but that seems impossible.
 The neural network is only slightly better with these results because the
 problem is so simple. The action dimension is just one.
+
+
+## Hopper
+
+I used the script in `bash_scripts/hopper.sh`. Here are the raw results:
+
+![Hopper-v1](figures/Hopper-v1.png?raw=true)
+
+And now the smoothed versions:
+
+![Hopper-v1_sm](figures/Hopper-v1_sm.png?raw=true)
+
+(Ho & Ermon 2016) showed in the GAIL paper that Hopper-v1 should get 3571.38
+with a standard deviation of 184.20 so ... yeah, these results are a bit
+sub-par! But at least they are learning *something*. Maybe my version of TRPO
+will do better.
