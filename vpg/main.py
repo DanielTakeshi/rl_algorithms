@@ -5,9 +5,10 @@ For usage, to quickly test, use:
 
     python main.py Pendulum-v0 --vf_type nn --do_not_save --render
 
-For saving, see the bsah scripts. Successfully tested on:
+For saving, see the bash scripts. Successfully tested on:
 
     Pendulum-v0
+    Hopper-v1
 
 (c) April 2017 by Daniel Seita. This code is built upon starter code from
 Berkeley CS 294-112.
