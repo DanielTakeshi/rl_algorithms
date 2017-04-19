@@ -1,15 +1,9 @@
 """
-Vanilla Policy Gradients.
+Trust Region Policy Optimization
 
 For usage, to quickly test, use:
 
     python main.py Pendulum-v0 --vf_type nn --do_not_save --render
-
-As long as --do_not_save is there, it won't overwrite files.  For tests when I
-want to benchmark and save results, see the bash scripts. Successfully tested:
-
-    Pendulum-v0
-    Hopper-v1
 
 (c) April 2017 by Daniel Seita. This code is built upon starter code from
 Berkeley CS 294-112.
@@ -117,175 +111,8 @@ class NnValueFunction(object):
         return np.concatenate([np.ones([X.shape[0], 1]), X, np.square(X)/2.0], axis=1)
 
 
-def main_cartpole(n_iter=100, gamma=1.0, seed=0, min_timesteps_per_batch=1000, 
-                  stepsize=1e-2, animate=True, vf_type='linear', vf_params=None, 
-                  logdir=None):
-    """ Runs vanilla policy gradient on the classic CartPole task.
-
-    Symbolic variables have the prefix sy_, to distinguish them from the
-    numerical values that are computed later in this function. Symbolic means
-    that TF will not "compute values" until run in a session. Naming convention
-    for shapes: `n` means batch size, `o` means observation dim, `a` means
-    action dim. Also, some of these (e.g. sy_ob_no) are used both for when
-    running the policy AND during training with a batch of observations.
-    
-      sy_ob_no:        batch of observations
-      sy_ac_n:         batch of actions taken by the policy, for policy gradient computation
-      sy_adv_n:        advantage function estimate
-      sy_h1:           hidden layer (before this: input -> dense -> relu)
-      sy_logits_na:    logits describing probability distribution of final layer
-      sy_oldlogits_na: logits before updating, only for KL diagnostic
-      sy_logp_na:      log probability of actions
-      sy_sampled_ac:   sampled action when running the policy (NOT computing the policy gradient)
-      sy_n:            clever way to obtain the batch size
-      sy_logprob_n:    log-prob of actions taken -- used for policy gradient calculation
-
-    Some of these rely on our convenience methods. Use a small initialization
-    for the last layer, so the initial policy has maximal entropy. We are
-    defaulting to a fully connected policy network with one hidden layer of 32
-    units, and a softmax output (by default, applied to the last dimension,
-    which we want here). Then we define a surrogate loss function. Again, it's
-    the same as before, define a loss function and plug it into Adam.
-   
-    Args:
-        n_iter: Number of iterations for policy gradient.
-        gamma: The discount factor, used for computing returns.
-        min_timesteps_per_batch: Minimum number of timesteps in a given
-            iteration of policy gradients. Each trajectory consists of multiple
-            timesteps.
-        stepsize:
-        animate: Whether to render it in OpenAI gym.
-        logdir: Output directory for logging. If None, store to a random place.
-    """
-    tf.set_random_seed(seed)
-    np.random.seed(seed)
-    env = gym.make("CartPole-v0")
-    ob_dim = env.observation_space.shape[0]
-    num_actions = env.action_space.n
-    logz.configure_output_dir(logdir)
-
-    # Create `sess` here so that we can pass it to the NN value function.
-    tf_config = tf.ConfigProto(inter_op_parallelism_threads=1, intra_op_parallelism_threads=1) 
-    sess = tf.Session(config=tf_config)
-    if vf_type == 'linear':
-        vf = LinearValueFunction(**vf_params)
-    elif vf_type == 'nn':
-        vf = NnValueFunction(session=sess, ob_dim=ob_dim, **vf_params)
-
-    # Symbolic variables as covered in the method documentation:
-    sy_ob_no        = tf.placeholder(shape=[None, ob_dim], name="ob", dtype=tf.float32)
-    sy_ac_n         = tf.placeholder(shape=[None], name="ac", dtype=tf.int32) 
-    sy_adv_n        = tf.placeholder(shape=[None], name="adv", dtype=tf.float32)
-    sy_h1           = lrelu(dense(sy_ob_no, 32, "h1", weight_init=normc_initializer(1.0)))
-    sy_logits_na    = dense(sy_h1, num_actions, "final", weight_init=normc_initializer(0.05))
-    sy_oldlogits_na = tf.placeholder(shape=[None, num_actions], name='oldlogits', dtype=tf.float32)
-    sy_logp_na      = tf.nn.log_softmax(sy_logits_na)
-    sy_sampled_ac   = categorical_sample_logits(sy_logits_na)[0]
-    sy_n            = tf.shape(sy_ob_no)[0]
-    sy_logprob_n    = fancy_slice_2d(sy_logp_na, tf.range(sy_n), sy_ac_n)
-
-    # The following quantities are just used for computing KL and entropy, JUST FOR DIAGNOSTIC PURPOSES >>>>
-    sy_oldlogp_na = tf.nn.log_softmax(sy_oldlogits_na)
-    sy_oldp_na    = tf.exp(sy_oldlogp_na)
-    sy_kl         = tf.reduce_sum(sy_oldp_na * (sy_oldlogp_na - sy_logp_na)) / tf.to_float(sy_n)
-    sy_p_na       = tf.exp(sy_logp_na)
-    sy_ent        = tf.reduce_sum( - sy_p_na * sy_logp_na) / tf.to_float(sy_n)
-    # <<<<<<<<<<<<<
-
-    # Loss function that we'll differentiate to get the policy gradient ("surr" is for "surrogate loss")
-    sy_surr = - tf.reduce_mean(sy_adv_n * sy_logprob_n) 
-
-    # Symbolic, in case you want to change the stepsize during optimization. (We're not doing that currently)
-    sy_stepsize = tf.placeholder(shape=[], dtype=tf.float32) 
-    update_op = tf.train.AdamOptimizer(sy_stepsize).minimize(sy_surr)
-
-    sess.__enter__() # equivalent to `with sess:`
-    tf.global_variables_initializer().run() #pylint: disable=E1101
-    total_timesteps = 0
-
-    for i in range(n_iter):
-        print("********** Iteration %i ************"%i)
-
-        # Collect paths until we have enough timesteps.
-        timesteps_this_batch = 0
-        paths = []
-        while True:
-            ob = env.reset()
-            terminated = False
-            obs, acs, rewards = [], [], []
-            animate_this_episode=(len(paths)==0 and (i % 10 == 0) and animate)
-            while True:
-                if animate_this_episode:
-                    env.render()
-                obs.append(ob)
-                ac = sess.run(sy_sampled_ac, feed_dict={sy_ob_no : ob[None]})
-                acs.append(ac)
-                ob, rew, done, _ = env.step(ac)
-                rewards.append(rew)
-                if done:
-                    break                    
-            path = {"observation" : np.array(obs), "terminated" : terminated,
-                    "reward" : np.array(rewards), "action" : np.array(acs)}
-            paths.append(path)
-            timesteps_this_batch += pathlength(path)
-            if timesteps_this_batch > min_timesteps_per_batch:
-                break
-        total_timesteps += timesteps_this_batch
-
-        # Estimate advantage function using baseline vf (these are lists!).
-        vtargs, vpreds, advs = [], [], []
-        for path in paths:
-            rew_t = path["reward"]
-            return_t = discount(rew_t, gamma)
-            vpred_t = vf.predict(path["observation"])
-            adv_t = return_t - vpred_t
-            advs.append(adv_t)
-            vtargs.append(return_t)
-            vpreds.append(vpred_t)
-
-        # Build arrays for policy update and also re-fit the baseline.
-        ob_no = np.concatenate([path["observation"] for path in paths])
-        ac_n = np.concatenate([path["action"] for path in paths])
-        adv_n = np.concatenate(advs)
-        standardized_adv_n = (adv_n - adv_n.mean()) / (adv_n.std() + 1e-8)
-        vtarg_n = np.concatenate(vtargs)
-        vpred_n = np.concatenate(vpreds)
-        vf.fit(ob_no, vtarg_n)
-
-        # Policy update
-        _, oldlogits_na = sess.run([update_op, sy_logits_na], 
-                                   feed_dict={sy_ob_no:ob_no, 
-                                              sy_ac_n:ac_n, 
-                                              sy_adv_n:standardized_adv_n, 
-                                              sy_stepsize:stepsize
-                                   })
-        kl, ent = sess.run([sy_kl, sy_ent], 
-                           feed_dict={sy_ob_no:ob_no, 
-                                      sy_oldlogits_na:oldlogits_na
-                           })
-
-        # Log diagnostics
-        logz.log_tabular("EpRewMean", np.mean([path["reward"].sum() for path in paths]))
-        logz.log_tabular("EpLenMean", np.mean([pathlength(path) for path in paths]))
-        logz.log_tabular("KLOldNew", kl)
-        logz.log_tabular("Entropy", ent)
-        logz.log_tabular("EVBefore", explained_variance_1d(vpred_n, vtarg_n))
-        logz.log_tabular("EVAfter", explained_variance_1d(vf.predict(ob_no), vtarg_n))
-        logz.log_tabular("TimestepsSoFar", total_timesteps)
-        # If you're overfitting, EVAfter will be way larger than EVBefore.
-        # Note that we fit value function AFTER using it to compute the advantage function to avoid introducing bias
-        logz.dump_tabular()
-
-    # Daniel: adding this to enable a for loop.
-    tf.reset_default_graph()
-
-
-def main_cartpole1(d):
-    return main_cartpole(**d)
-
-
-def vpg_continuous(logdir, args, vf_params):
-    """ Runs policy gradients on environments with continuous action spaces.
+def trpo_continuous(logdir, args, vf_params):
+    """ Runs TRPO on environments with continuous action spaces.
 
     Convention for symbolic construction naming/shapes: use `n` (batch size),
     `o`, and/or `a`.  The following are for both the gradient and the policy:
@@ -484,4 +311,4 @@ if __name__ == "__main__":
     if args.do_not_save:
         logdir = None
 
-    vpg_continuous(logdir, args, vf_params)
+    trpo_continuous(logdir, args, vf_params)
