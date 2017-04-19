@@ -1,5 +1,5 @@
 """
-Several utilities to reduce clutter in `main.py`.
+Several utilities to reduce clutter in my VPG and TRPO codes.
 
 (c) April 2017 (mostly...) by Daniel Seita
 """

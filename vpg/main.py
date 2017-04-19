@@ -5,7 +5,8 @@ For usage, to quickly test, use:
 
     python main.py Pendulum-v0 --vf_type nn --do_not_save --render
 
-For saving, see the bash scripts. Successfully tested on:
+As long as --do_not_save is there, it won't overwrite files.  For tests when I
+want to benchmark and save results, see the bash scripts. Successfully tested:
 
     Pendulum-v0
     Hopper-v1
@@ -22,7 +23,9 @@ import tensorflow.contrib.distributions as distr
 import gym
 import logz
 import sys
-import utils
+if "../" not in sys.path:
+    sys.path.append("../")
+from utils import utils_pg as utils
 
 
 class LinearValueFunction(object):
