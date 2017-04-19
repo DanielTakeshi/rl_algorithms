@@ -10,6 +10,96 @@ import scipy.signal
 import sys
 
 
+def linesearch(f, x, fullstep, expected_improve_rate, max_backtracks=10, accept_ratio=.1):
+    """ Backtracking linesearch, from John Schulman's code.
+
+    TODO
+    
+    Params:
+        f:
+        x:
+        fullstep:
+        expected_improve_rate: the slope dy/dx at the initial point
+        max_backtracks:
+        accept_ratio:
+
+    Returns:
+        ...
+    """
+    fval = f(x)
+    print("fval before {}".format(fval))
+    for (_n_backtracks, stepfrac) in enumerate(.5**np.arange(max_backtracks)):
+        xnew = x + stepfrac*fullstep
+        newfval = f(xnew)
+        actual_improve = fval - newfval
+        expected_improve = expected_improve_rate*stepfrac
+        ratio = actual_improve/expected_improve
+        print("a/e/r = {}/{}/{}".format(actual_improve, expected_improve, ratio))
+        if ratio > accept_ratio and actual_improve > 0:
+            print("fval after {}".format(newfval))
+            return True, xnew
+    return False, x
+
+
+def cg(f_Ax, b, cg_iters=10, callback=None, verbose=False, residual_tol=1e-10):
+    """ Conjugate gradient, from John Schulman's code. 
+    
+    Sculman used Demmel's book on applied linear algebra, page 312. Fortunately
+    I have a copy of it!! Shewchuk also has a version of this in his paper.
+    However, Shewchuk emphasizes that this is most useful for *sparse* matrices
+    `A`. Is that the case here? We do have a *large* matrix since the number of
+    rows/columns is equal to the number of neural network parameters, but is it
+    sparse?
+
+    This is used for solving linear systems of `Ax = b`, or `x = A^{-1}b`. In
+    TRPO, we don't want to compute `A` (let alone its inverse).  In addition,
+    `b` is our usual policy gradient. The goal is to find `A^{-1}b` and then
+    later (outside this code) scale that by `alpha`, and then we get the update
+    at last. I *think* the alpha-scaling comes from the line search, but I'm not
+    sure yet.
+
+    Params:
+        f_Ax: A function designed to mimic A*(input). However, we *don't* have
+            the entire matrix A formed.
+        b: A known vector. In TRPO, it's the vanilla policy gradient (I think).
+        cg_iters: Number of iterations of CG.
+        callback: (An artifact of John Schulman's code, TODO delete this?)
+        verbose: Print extra information for debugging.
+        residual_tol: Exit CG if ||r||_2^2 is small enough.
+
+    Returns:
+        Our estimate of `A^{-1}b` where A is (approximately?) the Hessian of the
+        KL divergence and `b` is given to us.
+    """
+    p = b.copy()
+    r = b.copy()
+    x = np.zeros_like(b)
+    rdotr = r.dot(r)
+
+    fmtstr =  "%10i %10.3g %10.3g"
+    titlestr =  "%10s %10s %10s"
+    if verbose: print titlestr % ("iter", "residual norm", "soln norm")
+
+    for i in xrange(cg_iters):
+        if callback is not None:
+            callback(x)
+        if verbose: print fmtstr % (i, rdotr, np.linalg.norm(x))
+        z = f_Ax(p)
+        v = rdotr / p.dot(z)
+        x += v*p
+        r -= v*z
+        newrdotr = r.dot(r)
+        mu = newrdotr/rdotr
+        p = r + mu*p
+        rdotr = newrdotr
+        if rdotr < residual_tol:
+            break
+    if callback is not None:
+        callback(x)
+    if verbose: print fmtstr % (i+1, rdotr, np.linalg.norm(x))  # pylint: disable=W0631
+    return x
+
+
 def gauss_log_prob(mu, logstd, x):
     """ Used for computing the log probability, following the formula for the
     multivariate Gaussian density. 

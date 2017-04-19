@@ -184,6 +184,10 @@ def trpo_continuous(logdir, args, vf_params):
     # sy_surr: loss function that we'll differentiate to get the policy gradient
     sy_surr     = - tf.reduce_mean(sy_adv_n * sy_logprob_n) 
     sy_stepsize = tf.placeholder(shape=[], dtype=tf.float32) 
+
+    # TODO I don't think we can apply this directly. We should get the gradient
+    # based on sy_surr, but then we need to rescale by the conjugate gradient
+    # and line search.
     update_op   = tf.train.AdamOptimizer(sy_stepsize).minimize(sy_surr)
     
     sess.__enter__() # equivalent to `with sess:`
