@@ -10,37 +10,12 @@ import scipy.signal
 import sys
 
 
-def linesearch(f, x, fullstep, expected_improve_rate, max_backtracks=10, accept_ratio=.1):
-    """ Backtracking linesearch, from John Schulman's code.
+## Theano version, I need a Tensorflow translation.
+##def flatgrad(loss, var_list):
+##    grads = T.grad(loss, var_list)
+##    return T.concatenate([g.flatten() for g in grads])
 
-    TODO
-    
-    Params:
-        f:
-        x:
-        fullstep:
-        expected_improve_rate: the slope dy/dx at the initial point
-        max_backtracks:
-        accept_ratio:
-
-    Returns:
-        ...
-    """
-    fval = f(x)
-    print("fval before {}".format(fval))
-    for (_n_backtracks, stepfrac) in enumerate(.5**np.arange(max_backtracks)):
-        xnew = x + stepfrac*fullstep
-        newfval = f(xnew)
-        actual_improve = fval - newfval
-        expected_improve = expected_improve_rate*stepfrac
-        ratio = actual_improve/expected_improve
-        print("a/e/r = {}/{}/{}".format(actual_improve, expected_improve, ratio))
-        if ratio > accept_ratio and actual_improve > 0:
-            print("fval after {}".format(newfval))
-            return True, xnew
-    return False, x
-
-
+ 
 def cg(f_Ax, b, cg_iters=10, callback=None, verbose=False, residual_tol=1e-10):
     """ Conjugate gradient, from John Schulman's code. 
     
@@ -60,7 +35,8 @@ def cg(f_Ax, b, cg_iters=10, callback=None, verbose=False, residual_tol=1e-10):
 
     Params:
         f_Ax: A function designed to mimic A*(input). However, we *don't* have
-            the entire matrix A formed.
+            the entire matrix A formed. It's the "Fisher-vector" product and
+            should be computed with Tensorflow. [TODO HOW??]
         b: A known vector. In TRPO, it's the vanilla policy gradient (I think).
         cg_iters: Number of iterations of CG.
         callback: (An artifact of John Schulman's code, TODO delete this?)
@@ -98,6 +74,53 @@ def cg(f_Ax, b, cg_iters=10, callback=None, verbose=False, residual_tol=1e-10):
         callback(x)
     if verbose: print fmtstr % (i+1, rdotr, np.linalg.norm(x))  # pylint: disable=W0631
     return x
+
+
+def backtracking_line_search(f, x, fullstep, expected_improve_rate, 
+                             max_backtracks=10, accept_ratio=0.1):
+    """ Backtracking line search, from John Schulman's code.
+
+    I think this is the same as what's listed in Boyd & Vandenberghe's book.
+    Remember that with backtracking line search, we have a fixed descent
+    direction (typically the negative gradient, as I explain in my blog post)
+    and we have to progressively decrease the step size. Here, that's
+    `stepfrac`.
+
+    Remember, this is *one* case of backtracking line search. We are *not*
+    changing any directions, i.e. `fullstep` is our only direction we have.
+    Also, conjugate gradient comes *before* this because we need to get the
+    `fullstep` from it.
+    
+    Params:
+        f: The function we're trying to minimize.
+        x: The starting point for backtracking line search. Remember, it's
+            really `theta` since it's the parameters of our policy net.
+        fullstep: The descent direction, provided by conjugate gradient!
+        expected_improve_rate: The slope dy/dx at the initial point.
+        max_backtracks: The maximum amount of iterations (i.e. backtracks).
+        accept_ratio: The ratio which helps to determine our stopping criterion.
+            It seems like a variant of most textbook descriptions of
+            backtracking line search; here, I think it's to ensure we get
+            above a threshold of improvement.
+
+    Returns:
+        A tuple (Y, x) where Y is a boolean indicating whether we've
+        successfully found a new point to go to, and x is that final point, or
+        the original x if the line search didn't find a better point.
+    """
+    fval = f(x)
+    print("fval before {}".format(fval))
+    for (_n_backtracks, stepfrac) in enumerate(.5**np.arange(max_backtracks)):
+        xnew = x + stepfrac*fullstep
+        newfval = f(xnew)
+        actual_improve = fval - newfval
+        expected_improve = expected_improve_rate*stepfrac
+        ratio = actual_improve/expected_improve
+        print("a/e/r = {}/{}/{}".format(actual_improve, expected_improve, ratio))
+        if ratio > accept_ratio and actual_improve > 0:
+            print("fval after {}".format(newfval))
+            return True, xnew
+    return False, x
 
 
 def gauss_log_prob(mu, logstd, x):
