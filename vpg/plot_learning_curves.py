@@ -6,14 +6,16 @@ python plot_learning_curves.py outputs/part01/ --out figures/part_01.png
 python plot_learning_curves.py outputs/part02/ --out figures/part_02.png
 python plot_learning_curves.py outputs/part02/ --out figures/part_02_smooth.png --smooth
 
-For the refactored, generic vanilla policy gradient code, do:
+For the refactored, generic vanilla policy gradient code, do (after first
+checking niter in this code...):
 
 python plot_learning_curves.py outputs/Pendulum-v0 --out figures/Pendulum-v0.png
 python plot_learning_curves.py outputs/Pendulum-v0 --out figures/Pendulum-v0_sm.png --smooth
 
 (Don't forget to add `sm` to the figure name!)
 
-Do this for each environment tested, e.g. with Hopper-v1 as well.
+Do this for each environment tested, e.g. with Hopper-v1 as well. Also, be
+careful to check the number of iterations!
 """
 
 import argparse
@@ -33,9 +35,11 @@ parser.add_argument('--smooth', action='store_true')
 args = parser.parse_args()
 dirnames = os.listdir(args.expdir)
 niter = args.niter
+
+# CAREFUL!
 if 'Pendulum-v0' in args.expdir:
     niter = 500
-if 'Hopper-v1' in args.expdir:
+if ('Hopper-v1' in args.expdir) or ('Walker2d-v1' in args.expdir):
     niter = 3000
 print("dirnames:\n{}".format(dirnames))
 print("niter: {}".format(niter))
@@ -43,7 +47,7 @@ print("niter: {}".format(niter))
 # Matplotlib settings
 lw=2
 font = 18
-fig, axes = subplots(4, figsize=(16,14))
+fig, axes = subplots(4, figsize=(14,18))
 
 # Try to handle the smoothed case separately. It's a bit ugly. I'm assuming I
 # did three different seeds, BTW.

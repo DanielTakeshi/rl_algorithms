@@ -4,7 +4,7 @@ This repository started out as the homework assignment from CS 294-112, Deep
 Reinforcement Learning, at UC Berkeley. See `cs294-112_stuff/homework.md` for
 details. I then changed it to make it more general.
 
-## Pendulum
+## Pendulum-v0
 
 Script I used:
 
@@ -33,7 +33,7 @@ The neural network is only slightly better with these results because the
 problem is so simple. The action dimension is just one.
 
 
-## Hopper
+## Hopper-v1
 
 I used the script in `bash_scripts/hopper.sh`. Here are the raw results:
 
@@ -47,3 +47,14 @@ And now the smoothed versions:
 with a standard deviation of 184.20 so ... yeah, these results are a bit
 sub-par! But at least they are learning *something*. Maybe my version of TRPO
 will do better.
+
+
+## Walker2d-v1
+
+Next, Walker2d-v1.
+
+![Walker2d-v1](figures/Walker2d-v1.png?raw=true)
+
+The GAIL paper said Walker-v1 shoudl get around 6717.08 p/m 845.62, but that
+might not be the same as Walker2d-v1. I'm not sure ... and the code Jonathan Ho
+has for imitaiton learning doesn't do as well.
