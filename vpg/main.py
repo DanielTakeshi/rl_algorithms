@@ -414,8 +414,8 @@ def vpg_continuous(logdir, args, vf_params):
         vf.fit(ob_no, vtarg_n)
 
         # Policy update. I _think_ this is how we get the old logstd.
-        _, oldmean_na, oldlogstd_a = sess.run(
-                [update_op, sy_mean_na, sy_logstd_a], 
+        _, surr_loss, oldmean_na, oldlogstd_a = sess.run(
+                [update_op, sy_surr, sy_mean_na, sy_logstd_a], 
                 feed_dict={sy_ob_no: ob_no, 
                            sy_ac_na: ac_n, 
                            sy_adv_n: standardized_adv_n, 
@@ -445,6 +445,7 @@ def vpg_continuous(logdir, args, vf_params):
         logz.log_tabular("Entropy", ent)
         logz.log_tabular("EVBefore", utils.explained_variance_1d(vpred_n, vtarg_n))
         logz.log_tabular("EVAfter", utils.explained_variance_1d(vf.predict(ob_no), vtarg_n))
+        logz.log_tabular("SurrogateLoss", surr_loss)
         logz.log_tabular("TimestepsSoFar", total_timesteps)
         # If you're overfitting, EVAfter will be way larger than EVBefore.
         # Note that we fit value function AFTER using it to compute the advantage function to avoid introducing bias
