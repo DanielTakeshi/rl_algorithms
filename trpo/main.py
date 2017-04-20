@@ -59,16 +59,8 @@ class NnValueFunction(object):
         """ 
         They provide us with an ob_dim in the code so I assume we can use it;
         makes it easy to define the layers anyway. This gets constructed upon
-        initialization so future calls to self.fit should remember this.
-            
-            sy_ytarg    (?,)
-            sy_ob_no    (?,3)
-            sy_h1       (?,32)
-            sy_final_na (?,1)
-            sy_ypred    (?,)
-            sy_sq_diff  (?,)
-
-        Edit: let's use the pre-processed version, with ob_dim*2+1 dimensions.
+        initialization so future calls to self.fit should remember this. I
+        actually use the pre-processed version, though.
         """
         self.n_epochs    = n_epochs
         self.lrate       = stepsize
@@ -83,9 +75,8 @@ class NnValueFunction(object):
         self.sess = session
 
     def fit(self, X, y, session=None):
-        """ 
-        Updates weights (self.coef) with design matrix X (i.e. observations) and
-        targets (i.e. actual returns) y.  I think we need a session?
+        """ Updates weights (self.coef) with design matrix X (i.e. observations)
+        and targets (i.e. actual returns) y.
         """
         assert X.shape[0] == y.shape[0]
         assert len(y.shape) == 1
@@ -175,19 +166,20 @@ def trpo_continuous(logdir, args, vf_params):
     sy_logstd_na    = tf.ones(shape=(sy_n,ac_dim), dtype=tf.float32) * sy_logstd_a
     sy_oldlogstd_na = tf.ones(shape=(sy_n,ac_dim), dtype=tf.float32) * sy_oldlogstd_a
 
-    # Set up the Gaussian distribution stuff, plus diagnostics.
-    sy_logprob_n  = utils.gauss_log_prob(mu=sy_mean_na, logstd=sy_logstd_na, x=sy_ac_na)
-    sy_sampled_ac = (tf.random_normal(tf.shape(sy_mean_na)) * tf.exp(sy_logstd_na) + sy_mean_na)[0]
-    sy_kl         = tf.reduce_mean(utils.gauss_KL(sy_mean_na, sy_logstd_na, sy_oldmean_na, sy_oldlogstd_na))
-    sy_ent        = 0.5 * ac_dim * tf.log(2.*np.pi*np.e) + 0.5 * tf.reduce_sum(sy_logstd_a)
+    # Set up the Gaussian distribution stuff & diagnostics. New in TRPO: old logprob.
+    sy_logprob_n     = utils.gauss_log_prob(mu=sy_mean_na, logstd=sy_logstd_na, x=sy_ac_na)
+    sy_oldlogprob_n  = utils.gauss_log_prob(mu=sy_oldmean_na, logstd=sy_oldlogstd_na, x=sy_ac_na)
+    sy_sampled_ac    = (tf.random_normal(tf.shape(sy_mean_na)) * tf.exp(sy_logstd_na) + sy_mean_na)[0]
+    sy_kl            = tf.reduce_mean(utils.gauss_KL(sy_mean_na, sy_logstd_na, sy_oldmean_na, sy_oldlogstd_na))
+    sy_ent           = 0.5 * ac_dim * tf.log(2.*np.pi*np.e) + 0.5 * tf.reduce_sum(sy_logstd_a)
 
-    # sy_surr: loss function that we'll differentiate to get the policy gradient
-    sy_surr     = - tf.reduce_mean(sy_adv_n * sy_logprob_n) 
+    # sy_surr: this time, we have a ratio exp(logprob/oldlogprob) times advangage.
+    sy_surr     = - tf.reduce_mean(sy_adv_n * tf.exp(sy_logprob_n - sy_oldlogprob_n))
     sy_stepsize = tf.placeholder(shape=[], dtype=tf.float32) 
 
     # TODO I don't think we can apply this directly. We should get the gradient
     # based on sy_surr, but then we need to rescale by the conjugate gradient
-    # and line search.
+    # and *then* do a line search.
     update_op   = tf.train.AdamOptimizer(sy_stepsize).minimize(sy_surr)
     
     sess.__enter__() # equivalent to `with sess:`
