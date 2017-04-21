@@ -39,7 +39,8 @@ niter = args.niter
 # CAREFUL!
 if 'Pendulum-v0' in args.expdir:
     niter = 500
-if ('Hopper-v1' in args.expdir) or ('Walker2d-v1' in args.expdir):
+if ('Hopper-v1' in args.expdir) or ('Walker2d-v1' in args.expdir) or \
+    ('HalfCheetah-v1' in args.expdir):
     niter = 3000
 print("dirnames:\n{}".format(dirnames))
 print("niter: {}".format(niter))

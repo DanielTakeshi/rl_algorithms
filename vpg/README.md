@@ -4,6 +4,8 @@ This repository started out as the homework assignment from CS 294-112, Deep
 Reinforcement Learning, at UC Berkeley. See `cs294-112_stuff/homework.md` for
 details. I then changed it to make it more general.
 
+# Simple Baselines
+
 ## Pendulum-v0
 
 Script I used:
@@ -32,6 +34,31 @@ what the theoretical best solution is; maybe zero, but that seems impossible.
 The neural network is only slightly better with these results because the
 problem is so simple. The action dimension is just one.
 
+# MuJoCo Baselines
+
+Tested on in alphabetical order:
+
+- HalfCheetah-v1
+- Hopper-v1
+- Walker2d-v1
+
+## HalfCheetah-v1
+
+The raw runs based on `bash_scripts/halfcheetah.sh`:
+
+![HalfCheetah-v1](figures/HalfCheetah-v1.png?raw=true)
+
+And the smooth runs:
+
+![HalfCheetah-v1_sm](figures/HalfCheetah-v1_sm.png?raw=true)
+
+The GAIL paper said HalfCheetah-v1 should get around 4463.46 ± 105.83 and in
+fact we are almost getting to that level. That's interesting.
+
+What's confusing is that the explained variance for the linear case seems to be
+terrible. Then why is the linear VF even working, and why is it just barely
+worse than the NN value function? Hmmm ... I may want to catch a video of this
+in action.
 
 ## Hopper-v1
 
@@ -48,7 +75,6 @@ with a standard deviation of 184.20 so ... yeah, these results are a bit
 sub-par! But at least they are learning *something*. Maybe my version of TRPO
 will do better.
 
-
 ## Walker2d-v1
 
 Next, Walker2d-v1. The raw runs based on `bash_scripts/walker.sh`:
@@ -59,6 +85,6 @@ And the smooth runs:
 
 ![Walker2d-v1_sm](figures/Walker2d-v1_sm.png?raw=true)
 
-The GAIL paper said Walker-v1 shoudl get around 6717.08 p/m 845.62, but that
+The GAIL paper said Walker-v1 should get around 6717.08 p/m 845.62, but that
 might not be the same as Walker2d-v1. I'm not sure ... and the code Jonathan Ho
-has for imitaiton learning doesn't do as well.
+has for imitation learning doesn't do as well.
