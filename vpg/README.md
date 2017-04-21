@@ -51,9 +51,13 @@ will do better.
 
 ## Walker2d-v1
 
-Next, Walker2d-v1.
+Next, Walker2d-v1. The raw runs based on `bash_scripts/walker.sh`:
 
 ![Walker2d-v1](figures/Walker2d-v1.png?raw=true)
+
+And the smooth runs:
+
+![Walker2d-v1_sm](figures/Walker2d-v1_sm.png?raw=true)
 
 The GAIL paper said Walker-v1 shoudl get around 6717.08 p/m 845.62, but that
 might not be the same as Walker2d-v1. I'm not sure ... and the code Jonathan Ho
