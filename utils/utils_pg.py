@@ -9,118 +9,16 @@ import tensorflow as tf
 import scipy.signal
 import sys
 
-
-## Theano version, I need a Tensorflow translation.
-##def flatgrad(loss, var_list):
-##    grads = T.grad(loss, var_list)
-##    return T.concatenate([g.flatten() for g in grads])
-
- 
-def cg(f_Ax, b, cg_iters=10, callback=None, verbose=False, residual_tol=1e-10):
-    """ Conjugate gradient, from John Schulman's code. 
-    
-    Sculman used Demmel's book on applied linear algebra, page 312. Fortunately
-    I have a copy of it!! Shewchuk also has a version of this in his paper.
-    However, Shewchuk emphasizes that this is most useful for *sparse* matrices
-    `A`. Is that the case here? We do have a *large* matrix since the number of
-    rows/columns is equal to the number of neural network parameters, but is it
-    sparse?
-
-    This is used for solving linear systems of `Ax = b`, or `x = A^{-1}b`. In
-    TRPO, we don't want to compute `A` (let alone its inverse).  In addition,
-    `b` is our usual policy gradient. The goal is to find `A^{-1}b` and then
-    later (outside this code) scale that by `alpha`, and then we get the update
-    at last. I *think* the alpha-scaling comes from the line search, but I'm not
-    sure yet.
-
-    Params:
-        f_Ax: A function designed to mimic A*(input). However, we *don't* have
-            the entire matrix A formed. It's the "Fisher-vector" product and
-            should be computed with Tensorflow. [TODO HOW??]
-        b: A known vector. In TRPO, it's the vanilla policy gradient (I think).
-        cg_iters: Number of iterations of CG.
-        callback: (An artifact of John Schulman's code, TODO delete this?)
-        verbose: Print extra information for debugging.
-        residual_tol: Exit CG if ||r||_2^2 is small enough.
-
-    Returns:
-        Our estimate of `A^{-1}b` where A is (approximately?) the Hessian of the
-        KL divergence and `b` is given to us.
+def gauss_log_prob_1(mu, logstd, x):
+    """ 
+    Calls `gauss_log_prob` with a broadcasted version of logstd. Assumes that
+    logstd is of shape (n,) and mu is of shape (n,a). 
     """
-    p = b.copy()
-    r = b.copy()
-    x = np.zeros_like(b)
-    rdotr = r.dot(r)
-
-    fmtstr =  "%10i %10.3g %10.3g"
-    titlestr =  "%10s %10s %10s"
-    if verbose: print titlestr % ("iter", "residual norm", "soln norm")
-
-    for i in xrange(cg_iters):
-        if callback is not None:
-            callback(x)
-        if verbose: print fmtstr % (i, rdotr, np.linalg.norm(x))
-        z = f_Ax(p)
-        v = rdotr / p.dot(z)
-        x += v*p
-        r -= v*z
-        newrdotr = r.dot(r)
-        mu = newrdotr/rdotr
-        p = r + mu*p
-        rdotr = newrdotr
-        if rdotr < residual_tol:
-            break
-    if callback is not None:
-        callback(x)
-    if verbose: print fmtstr % (i+1, rdotr, np.linalg.norm(x))  # pylint: disable=W0631
-    return x
-
-
-def backtracking_line_search(f, x, fullstep, expected_improve_rate, 
-                             max_backtracks=10, accept_ratio=0.1):
-    """ Backtracking line search, from John Schulman's code.
-
-    I think this is the same as what's listed in Boyd & Vandenberghe's book.
-    Remember that with backtracking line search, we have a fixed descent
-    direction (typically the negative gradient, as I explain in my blog post)
-    and we have to progressively decrease the step size. Here, that's
-    `stepfrac`.
-
-    Remember, this is *one* case of backtracking line search. We are *not*
-    changing any directions, i.e. `fullstep` is our only direction we have.
-    Also, conjugate gradient comes *before* this because we need to get the
-    `fullstep` from it.
-    
-    Params:
-        f: The function we're trying to minimize.
-        x: The starting point for backtracking line search. Remember, it's
-            really `theta` since it's the parameters of our policy net.
-        fullstep: The descent direction, provided by conjugate gradient!
-        expected_improve_rate: The slope dy/dx at the initial point.
-        max_backtracks: The maximum amount of iterations (i.e. backtracks).
-        accept_ratio: The ratio which helps to determine our stopping criterion.
-            It seems like a variant of most textbook descriptions of
-            backtracking line search; here, I think it's to ensure we get
-            above a threshold of improvement.
-
-    Returns:
-        A tuple (Y, x) where Y is a boolean indicating whether we've
-        successfully found a new point to go to, and x is that final point, or
-        the original x if the line search didn't find a better point.
-    """
-    fval = f(x)
-    print("fval before {}".format(fval))
-    for (_n_backtracks, stepfrac) in enumerate(.5**np.arange(max_backtracks)):
-        xnew = x + stepfrac*fullstep
-        newfval = f(xnew)
-        actual_improve = fval - newfval
-        expected_improve = expected_improve_rate*stepfrac
-        ratio = actual_improve/expected_improve
-        print("a/e/r = {}/{}/{}".format(actual_improve, expected_improve, ratio))
-        if ratio > accept_ratio and actual_improve > 0:
-            print("fval after {}".format(newfval))
-            return True, xnew
-    return False, x
+    assert mu.get_shape() == x.get_shape()
+    assert mu.get_shape()[0] == logstd.get_shape()[0]
+    assert len(logstd.get_shape()) == 1
+    logstd_broadcasted = tf.ones(shape=tf.shape(mu), dtype=tf.float32) * logstd
+    return gauss_log_prob(mu, logstd_broadcasted, x)
 
 
 def gauss_log_prob(mu, logstd, x):
@@ -141,6 +39,20 @@ def gauss_log_prob(mu, logstd, x):
     var_na = tf.exp(2*logstd)
     gp_na = -tf.square(x - mu)/(2*var_na) - 0.5*tf.log(tf.constant(2*np.pi)) - logstd
     return tf.reduce_sum(gp_na, axis=[1])
+
+
+def gauss_KL_1(mu1, logstd1, mu2, logstd2):
+    """ 
+    Calls `gauss_KL` with a broadcasted version of logstd1 and logstd1.  Assumes
+    that logstd1 and logstd2 are of shape (n,). 
+    """
+    assert mu1.get_shape() == mu2.get_shape()
+    assert logstd1.get_shape() == logstd2.get_shape()
+    assert mu1.get_shape()[0] == logst1.get_shape()[0]
+    assert len(logstd1.get_shape()) == 1
+    logstd_broadcasted1 = tf.ones(shape=tf.shape(mu1), dtype=tf.float32) * logstd1
+    logstd_broadcasted2 = tf.ones(shape=tf.shape(mu2), dtype=tf.float32) * logstd2
+    return gauss_KL(mu1, logstd1_broadcasted, mu2, logstd2_broadcasted)
 
 
 def gauss_KL(mu1, logstd1, mu2, logstd2):
