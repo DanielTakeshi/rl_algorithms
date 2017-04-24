@@ -14,8 +14,7 @@ def gauss_log_prob_1(mu, logstd, x):
     Calls `gauss_log_prob` with a broadcasted version of logstd. Assumes that
     logstd is of shape (n,) and mu is of shape (n,a). 
     """
-    assert mu.get_shape() == x.get_shape()
-    assert mu.get_shape()[0] == logstd.get_shape()[0]
+    assert mu.get_shape()[1:] == x.get_shape()[1:]
     assert len(logstd.get_shape()) == 1
     logstd_broadcasted = tf.ones(shape=tf.shape(mu), dtype=tf.float32) * logstd
     return gauss_log_prob(mu, logstd_broadcasted, x)
@@ -46,12 +45,11 @@ def gauss_KL_1(mu1, logstd1, mu2, logstd2):
     Calls `gauss_KL` with a broadcasted version of logstd1 and logstd1.  Assumes
     that logstd1 and logstd2 are of shape (n,). 
     """
-    assert mu1.get_shape() == mu2.get_shape()
-    assert logstd1.get_shape() == logstd2.get_shape()
-    assert mu1.get_shape()[0] == logst1.get_shape()[0]
+    assert mu1.get_shape()[1:] == mu2.get_shape()[1:]
     assert len(logstd1.get_shape()) == 1
-    logstd_broadcasted1 = tf.ones(shape=tf.shape(mu1), dtype=tf.float32) * logstd1
-    logstd_broadcasted2 = tf.ones(shape=tf.shape(mu2), dtype=tf.float32) * logstd2
+    assert len(logstd2.get_shape()) == 1
+    logstd1_broadcasted = tf.ones(shape=tf.shape(mu1), dtype=tf.float32) * logstd1
+    logstd2_broadcasted = tf.ones(shape=tf.shape(mu2), dtype=tf.float32) * logstd2
     return gauss_KL(mu1, logstd1_broadcasted, mu2, logstd2_broadcasted)
 
 
