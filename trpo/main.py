@@ -57,28 +57,26 @@ def run_trpo_algorithm(args, vf_params, logdir):
     # Official TRPO iterations.
     for i in range(args.n_iter):
         print("********** iteration %i ************"%i)
+        infodict = {}
         paths = TRPOAgent.get_paths(seed_iter, env)
         TRPOAgent.compute_advantages(paths)
         TRPOAgent.fit_value_function(paths)
-        TRPOAgent.update_policy(paths) # TODO
-        sys.exit()
-        TRPOAgent.log_diagnostics(paths) # TODO
-
-    # Print some informative message here?
-    print("Done?")
+        TRPOAgent.update_policy(paths, infodict)
+        TRPOAgent.log_diagnostics(paths, infodict)
+    print("\nAll done!")
 
 
 if __name__ == "__main__":
     # Get all the major arguments set up for TRPO here.
     p = argparse.ArgumentParser()
     p.add_argument('envname', type=str)
-    p.add_argument('--cg_damping', type=float, default=1e-3)
+    p.add_argument('--cg_damping', type=float, default=0.1)
     p.add_argument('--do_not_save', action='store_true')
-    p.add_argument('--gamma', type=float, default=0.97)
+    p.add_argument('--gamma', type=float, default=0.98)
     p.add_argument('--initial_stepsize', type=float, default=1e-3)
-    p.add_argument('--max_kl', type=float, default=1e-2)
-    p.add_argument('--min_timesteps_per_batch', type=int, default=2500) 
-    p.add_argument('--n_iter', type=int, default=500)
+    p.add_argument('--max_kl', type=float, default=0.01)
+    p.add_argument('--min_timesteps_per_batch', type=int, default=5000) 
+    p.add_argument('--n_iter', type=int, default=250)
     p.add_argument('--nnvf_epochs', type=int, default=50)
     p.add_argument('--nnvf_ssize', type=float, default=1e-3)
     p.add_argument('--render', action='store_true')

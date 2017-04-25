@@ -61,7 +61,7 @@ class TRPO:
         self.oldmean_na = tf.placeholder(shape=[None, ac_dim], name='oldmean', dtype=tf.float32)
 
         # The log standard deviation *vector*, to be concatenated with the mean vector.
-        self.logstd_a    = tf.get_variable("logstd", [ac_dim], initializer=tf.ones_initializer())
+        self.logstd_a    = tf.get_variable("logstd", [ac_dim], initializer=tf.zeros_initializer())
         self.oldlogstd_a = tf.placeholder(shape=[ac_dim], name="oldlogstd", dtype=tf.float32)
 
         # In VPG, use logprob in surrogate loss. In TRPO, we also need the old one.
@@ -112,6 +112,7 @@ class TRPO:
             size = np.prod(shape)
             tangents.append(tf.reshape(self.flat_tangent[start:start+size], shape))
             start += size
+        self.num_params = start
 
         # Do elementwise g*tangent then sum components, then add everything at the end.
         # John Schulman used T.add(*[...]). The TF equivalent seems to be tf.add_n.
@@ -125,6 +126,23 @@ class TRPO:
         # above computes the first derivatives, and then the `gvp` is computing
         # the second derivatives. But what about hessian_vector_product?
         self.fisher_vector_product = self._flatgrad(self.gradient_vector_product, self.params)
+        
+        # Deal with logic about *getting* parameters (as a flat vector).
+        self.get_params_flat_op = tf.concat([tf.reshape(v, [-1]) for v in self.params], axis=0)
+
+        # Finally, deal with logic about *setting* parameters.
+        self.theta = tf.placeholder(tf.float32, shape=[self.num_params], name="theta")
+        start = 0
+        updates = []
+        for v in self.params:
+            shape = v.get_shape()
+            size = tf.reduce_prod(shape)
+            # Note that tf.assign(ref, value) assigns `value` to `ref`.
+            updates.append(
+                    tf.assign(v, tf.reshape(self.theta[start:start+size], shape))
+            )
+            start += size
+        self.set_params_flat_op = tf.group(*updates) # Performs all updates together.
 
         print("In TRPO init, shapes:\n{}\nstart={}".format(shapes, start))
         print("self.pg: {}\ngvp: {}\nfvp: {}".format(self.pg,
@@ -132,7 +150,7 @@ class TRPO:
         print("Finished with the TRPO agent initialization.")
     
 
-    def update_policy(self, paths):
+    def update_policy(self, paths, infodict):
         """ Performs the TRPO policy update based on a minibach of data.
 
         Note: this is mostly where the differences between TRPO and VPG become
@@ -142,7 +160,8 @@ class TRPO:
         lot of session calls, FYI.
         
         Params:
-            paths: A defaultdict with information from the rollouts.
+            paths: A LIST of defaultdicts with information from the rollouts.
+            infodict: A dictionary with statistics for logging later.
         """
         prob_np = np.concatenate([path["prob"] for path in paths])
         ob_no = np.concatenate([path["observation"] for path in paths])
@@ -153,7 +172,7 @@ class TRPO:
         assert len(adv_n.shape) == 1
 
         # Daniel: simply gets a flat vector of the parameters.
-        thprev = self._get_params_flat()
+        thprev = self.sess.run(self.get_params_flat_op)
 
         # Make a feed to avoid clutter later. Note, our code differs slightly
         # from John Schulman as we have to explicitly provide the old means and
@@ -166,60 +185,58 @@ class TRPO:
                 self.oldmean_na: prob_np[:,:k],
                 self.oldlogstd_a: prob_np[0,k:]} # Use 0 because all logstd are same.
 
-        # I think this works ...
+        # Had to add the extra flat_tangent to the feed, otherwise I'd get errors.
         def fisher_vector_product(p):
-            feed[self.flat_tangent] = p # Had to add this, otherwise I'd get errors.
+            feed[self.flat_tangent] = p 
             fvp = self.sess.run(self.fisher_vector_product, feed_dict=feed)
             return fvp + self.args.cg_damping*p
 
-        # Same with these two ...
+        # Get the policy gradient. Also the losses, for debugging.
         g = self.sess.run(self.pg, feed_dict=feed)
         surrloss, kl, ent = self.sess.run([self.surr, self.kl, self.ent], feed_dict=feed)
+        assert kl == 0
 
         if np.allclose(g, 0):
-            print("Got zero gradient, not updating ...")
+            print("\tGot zero gradient, not updating ...")
         else:
             stepdir = utils_trpo.cg(fisher_vector_product, -g)
             shs = 0.5*stepdir.dot(fisher_vector_product(stepdir))
             lm = np.sqrt(shs / self.args.max_kl)
-            print("Lagrange multiplier: {}, gnorm: {}".format(lm, np.linalg.norm(g)))
+            infodict["LagrangeM"] = lm
             fullstep = stepdir / lm
             neggdotstepdir = -g.dot(stepdir)
 
             # Returns the current self.surr (surrogate loss).
             def loss(th):
-                self._set_params_flat(th)
+                self.sess.run(self.set_params_flat_op, feed_dict={self.theta: th})
                 return self.sess.run(self.surr, feed_dict=feed)
 
+            # Update the weights using `self.set_params_flat_op`.
             success, theta = utils_trpo.backtracking_line_search(loss, 
                     thprev, fullstep, neggdotstepdir/lm)
-            print("success: {}".format(success))
-            self._set_params_flat(theta)
+            self.sess.run(self.set_params_flat_op, feed_dict={self.theta: theta})
+
         surrloss_after, kl_after, ent_after = self.sess.run(
                 [self.surr, self.kl, self.ent], feed_dict=feed)
+        logstd_new = self.sess.run(self.logstd_a, feed_dict=feed)
+        print("logstd new = {}".format(logstd_new))
 
-
-    def _get_params_flat(self):
-        """ 
-        We return a vector of the current TRPO policy net's parameters, which
-        are listed in `var_list`. 
-        """
-        param_vector = tf.concat([tf.reshape(v, [-1]) for v in self.params], axis=0)
-        return param_vector.eval(session=self.sess) 
-
-
-    def _set_params_flat(self, th):
-        """ 
-        Given `th`, a vector of parameters, we set the current TRPO policy net's
-        parameters (inside `var_list`) to be equal to `th`. 
-        """
-        # TODO actually, how do we do this?
-        pass
+        # For logging later.
+        infodict["gNorm"] = np.linalg.norm(g)
+        infodict["KLOldNew"] = kl_after
+        infodict["Entropy"] = ent_after
+        infodict["SurrLoss"] = surrloss_after
+        infodict["Success"] = success
 
 
     def _flatgrad(self, loss, var_list):
         """ A Tensorflow version of John Schulman's `flatgrad` function. It
         computes the gradients but does NOT apply them (for now). 
+
+        TODO I may need to put this inside the init method to avoid the
+        computational graph constantly being reconstructed. Otherwise, when it
+        gets called, isn't it calling the computational graph? But this is only
+        called during the `init` method anyway so it might be OK.
 
         Params:
             loss: The loss function we're optimizing, which I assume is always
@@ -313,7 +330,7 @@ class TRPO:
         have to worry about crossing over different episodes.
 
         Params:
-            paths: A defaultdict with information from the rollouts.
+            paths: A LIST of defaultdicts with information from the rollouts.
         """
         for path in paths:
             path["reward"] = utils.discount(path["reward"], self.args.gamma)
@@ -332,16 +349,22 @@ class TRPO:
         self.vf.fit(ob_no, vtarg_n)
 
 
-    def log_diagnostics(self, paths):
+    def log_diagnostics(self, paths, infodict):
         """ Just logging using the `logz` functionality. """
-        logz.log_tabular("eprewmean", np.mean([path["reward"].sum() for path in paths]))
-        logz.log_tabular("eplenmean", np.mean([utils.pathlength(path) for path in paths]))
-        logz.log_tabular("kloldnew", kl)
-        logz.log_tabular("entropy", ent)
-        logz.log_tabular("evbefore", utils.explained_variance_1d(vpred_n, vtarg_n))
-        logz.log_tabular("evafter", utils.explained_variance_1d(vf.predict(ob_no), vtarg_n))
-        logz.log_tabular("surrogateloss", surr_loss)
-        logz.log_tabular("timestepssofar", total_timesteps)
-        # if you're overfitting, evafter will be way larger than evbefore.
-        # note that we fit value function after using it to compute the advantage function to avoid introducing bias
+        ob_no = np.concatenate([path["observation"] for path in paths])
+        vpred_n = np.concatenate([path["baseline"] for path in paths])
+        vtarg_n = np.concatenate([path["reward"] for path in paths])
+
+        logz.log_tabular("EpRewMean", np.mean([path["reward"].sum() for path in paths]))
+        logz.log_tabular("EpLenMean", np.mean([utils.pathlength(path) for path in paths]))
+        logz.log_tabular("KLOldNew",  infodict["KLOldNew"])
+        logz.log_tabular("Entropy",   infodict["Entropy"])
+        logz.log_tabular("SurrLoss",  infodict["SurrLoss"])
+        logz.log_tabular("Success",   infodict["Success"])
+        logz.log_tabular("LagrangeM", infodict["LagrangeM"])
+        logz.log_tabular("gNorm",     infodict["gNorm"])
+        logz.log_tabular("EVBefore",  utils.explained_variance_1d(vpred_n, vtarg_n))
+        logz.log_tabular("EVAfter",   utils.explained_variance_1d(self.vf.predict(ob_no), vtarg_n))
+        # If overfitting, EVAfter >> EVBefore. Also, we fit the value function
+        # _after_ using it to compute the baseline to avoid introducing bias.
         logz.dump_tabular()

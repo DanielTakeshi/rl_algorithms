@@ -105,7 +105,8 @@ def backtracking_line_search(f, x, fullstep, expected_improve_rate,
         actual_improve = fval - newfval
         expected_improve = expected_improve_rate*stepfrac
         ratio = actual_improve/expected_improve
-        print("a/e/r = {}/{}/{}".format(actual_improve, expected_improve, ratio))
+        print("actual_i / expected_i / ratio = {} / {} / {}".format(
+                actual_improve, expected_improve, ratio))
         if ratio > accept_ratio and actual_improve > 0:
             print("fval after {}".format(newfval))
             return (True, xnew)
