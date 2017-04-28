@@ -58,7 +58,7 @@ class NnValueFunction(object):
         self.n_epochs    = n_epochs
         self.lrate       = stepsize
         self.sy_ytarg    = tf.placeholder(shape=[None], name="nnvf_y", dtype=tf.float32)
-        self.sy_ob_no    = tf.placeholder(shape=[None, ob_dim*2+1], name="nnvf_ob", dtype=tf.float32)
+        self.sy_ob_no    = tf.placeholder(shape=[None, ob_dim+1], name="nnvf_ob", dtype=tf.float32)
         self.sy_h1       = utils.lrelu(utils.dense(self.sy_ob_no, 32, "nnvf_h1", weight_init=utils.normc_initializer(1.0)), leak=0.0)
         self.sy_h2       = utils.lrelu(utils.dense(self.sy_h1, 32, "nnvf_h2", weight_init=utils.normc_initializer(1.0)), leak=0.0)
         self.sy_final_n  = utils.dense(self.sy_h2, 1, "nnvf_final", weight_init=utils.normc_initializer(1.0))
@@ -69,10 +69,15 @@ class NnValueFunction(object):
 
     def fit(self, X, y):
         """ Updates weights (self.coef) with design matrix X (i.e. observations)
-        and targets (i.e. actual returns) y.
+        and targets (i.e. actual returns) y. NOTE! We now return a dictionary
+        `out` so that we can provide information relevant information for the
+        logger.
         """
         assert X.shape[0] == y.shape[0]
         assert len(y.shape) == 1
+        out = {}
+        out["PredStdevBefore"] = self.predict(X).std()
+
         Xp = self.preproc(X)
         for i in range(self.n_epochs):
             _,err = self.sess.run(
@@ -80,6 +85,10 @@ class NnValueFunction(object):
                     feed_dict={self.sy_ob_no: Xp,
                                self.sy_ytarg: y
                     })
+
+        out["PredStdevAfter"] = self.predict(X).std()
+        out["TargStdev"] = y.std()
+        return out
 
     def predict(self, X):
         """ 
@@ -92,4 +101,5 @@ class NnValueFunction(object):
 
     def preproc(self, X):
         """ Let's add this here to increase dimensionality. """
-        return np.concatenate([np.ones([X.shape[0], 1]), X, np.square(X)/2.0], axis=1)
+        #return np.concatenate([np.ones([X.shape[0], 1]), X, np.square(X)/2.0], axis=1)
+        return np.concatenate([np.ones([X.shape[0], 1]), X], axis=1)

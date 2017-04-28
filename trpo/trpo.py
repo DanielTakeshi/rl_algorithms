@@ -7,9 +7,10 @@ script.
 used a Theano version.
 """
 
+import gym
 import numpy as np
 import tensorflow as tf
-import gym
+import time
 import utils_trpo
 from collections import defaultdict
 from fxn_approx import *
@@ -53,8 +54,8 @@ class TRPO:
         self.adv_n = tf.placeholder(shape=[None], name="adv", dtype=tf.float32)
 
         # Constructing the policy network, mapping from states -> mean vector.
-        self.h1 = utils.lrelu(utils.dense(self.ob_no, 32, "h1", weight_init=utils.normc_initializer(1.0)))
-        self.h2 = utils.lrelu(utils.dense(self.h1, 32, "h2", weight_init=utils.normc_initializer(1.0)))
+        self.h1 = utils.lrelu(utils.dense(self.ob_no, 64, "h1", weight_init=utils.normc_initializer(1.0)))
+        self.h2 = utils.lrelu(utils.dense(self.h1, 64, "h2", weight_init=utils.normc_initializer(1.0)))
 
         # Last layer of the network to get the mean, plus also an `old` version.
         self.mean_na    = utils.dense(self.h2, ac_dim, "mean", weight_init=utils.normc_initializer(0.05))
@@ -148,6 +149,7 @@ class TRPO:
         print("self.pg: {}\ngvp: {}\nfvp: {}".format(self.pg,
             self.gradient_vector_product, self.fisher_vector_product))
         print("Finished with the TRPO agent initialization.")
+        self.start_time = time.time()
     
 
     def update_policy(self, paths, infodict):
@@ -193,8 +195,9 @@ class TRPO:
 
         # Get the policy gradient. Also the losses, for debugging.
         g = self.sess.run(self.pg, feed_dict=feed)
-        surrloss, kl, ent = self.sess.run([self.surr, self.kl, self.ent], feed_dict=feed)
-        assert kl == 0
+        surrloss_before, kl_before, ent_before = self.sess.run(
+                [self.surr, self.kl, self.ent], feed_dict=feed)
+        assert kl_before == 0
 
         if np.allclose(g, 0):
             print("\tGot zero gradient, not updating ...")
@@ -223,10 +226,14 @@ class TRPO:
 
         # For logging later.
         infodict["gNorm"] = np.linalg.norm(g)
-        infodict["KLOldNew"] = kl_after
-        infodict["Entropy"] = ent_after
-        infodict["SurrLoss"] = surrloss_after
         infodict["Success"] = success
+        infodict["LagrangeM"] = lm
+        infodict["pol_surr_before"] = surrloss_before
+        infodict["pol_surr_after"] = surrloss_after
+        infodict["pol_kl_before"] = kl_before
+        infodict["pol_kl_after"] = kl_after
+        infodict["pol_ent_before"] = ent_before
+        infodict["pol_ent_after"] = ent_after
 
 
     def _flatgrad(self, loss, var_list):
@@ -287,7 +294,7 @@ class TRPO:
 
         Returns:
             paths: A _list_ where each element is a _dictionary_ corresponding
-            to statistics from ONE episode.
+                to statistics from ONE episode.
         """
         paths = []
         timesteps_sofar = 0
@@ -310,7 +317,6 @@ class TRPO:
                     break
             data = {k:np.array(v) for (k,v) in data.iteritems()}
             paths.append(data)
-
             timesteps_sofar += utils.pathlength(data)
             if (timesteps_sofar >= self.args.min_timesteps_per_batch):
                 break
@@ -331,6 +337,7 @@ class TRPO:
 
         Params:
             paths: A LIST of defaultdicts with information from the rollouts.
+                Each defaultdict element contains information about ONE episode.
         """
         for path in paths:
             path["reward"] = utils.discount(path["reward"], self.args.gamma)
@@ -341,30 +348,53 @@ class TRPO:
             path["advantage"] = (path["advantage"] - adv_n.mean()) / (adv_n.std() + 1e-8)
 
 
-    def fit_value_function(self, paths):
-        """ Fits the TRPO's value function with the current minibatch of data. """
+    def fit_value_function(self, paths, vfdict):
+        """ Fits the TRPO's value function with the current minibatch of data.
+        Also takes in another dictionary, `vfdict`, for relevant statistics
+        related to the value function.
+        """
         ob_no = np.concatenate([path["observation"] for path in paths])
         vtarg_n = np.concatenate([path["reward"] for path in paths])
         assert ob_no.shape[0] == vtarg_n.shape[0]
-        self.vf.fit(ob_no, vtarg_n)
+        out = self.vf.fit(ob_no, vtarg_n)
+        for key in out:
+            vfdict[key] = out[key]
 
 
-    def log_diagnostics(self, paths, infodict):
+    def log_diagnostics(self, paths, infodict, vfdict):
         """ Just logging using the `logz` functionality. """
         ob_no = np.concatenate([path["observation"] for path in paths])
         vpred_n = np.concatenate([path["baseline"] for path in paths])
         vtarg_n = np.concatenate([path["reward"] for path in paths])
+        elapsed_time = (time.time() - self.start_time) # In seconds
+        episode_rewards = np.array([path["reward"].sum() for path in paths])
+        episode_lengths = np.array([utils.pathlength(path) for path in paths])
 
-        logz.log_tabular("EpRewMean", np.mean([path["reward"].sum() for path in paths]))
-        logz.log_tabular("EpLenMean", np.mean([utils.pathlength(path) for path in paths]))
-        logz.log_tabular("KLOldNew",  infodict["KLOldNew"])
-        logz.log_tabular("Entropy",   infodict["Entropy"])
-        logz.log_tabular("SurrLoss",  infodict["SurrLoss"])
-        logz.log_tabular("Success",   infodict["Success"])
-        logz.log_tabular("LagrangeM", infodict["LagrangeM"])
-        logz.log_tabular("gNorm",     infodict["gNorm"])
-        logz.log_tabular("EVBefore",  utils.explained_variance_1d(vpred_n, vtarg_n))
-        logz.log_tabular("EVAfter",   utils.explained_variance_1d(self.vf.predict(ob_no), vtarg_n))
+        # These are *not* logged in John Schulman's code.
+        #logz.log_tabular("Success",   infodict["Success"])
+        #logz.log_tabular("LagrangeM", infodict["LagrangeM"])
+        #logz.log_tabular("gNorm",     infodict["gNorm"])
+
+        # These *are* logged in John Schulman's code. First, rewards:
+        logz.log_tabular("NumEpBatch", len(paths))
+        logz.log_tabular("EpRewMean",  episode_rewards.mean())
+        logz.log_tabular("EpRewMax",   episode_rewards.max())
+        logz.log_tabular("EpRewSEM",   episode_rewards.std()/np.sqrt(len(paths)))
+        logz.log_tabular("EpLenMean",  episode_lengths.mean())
+        logz.log_tabular("EpLenMax",   episode_lengths.max())
+        logz.log_tabular("RewPerStep", episode_rewards.sum()/episode_lengths.sum())
+        logz.log_tabular("vf_PredStdevBefore", vfdict["PredStdevBefore"])
+        logz.log_tabular("vf_PredStdevAfter",  vfdict["PredStdevAfter"])
+        logz.log_tabular("vf_TargStdev",       vfdict["TargStdev"])
+        logz.log_tabular("vf_EV_before",       utils.explained_variance_1d(vpred_n, vtarg_n))
+        logz.log_tabular("vf_EV_after",        utils.explained_variance_1d(self.vf.predict(ob_no), vtarg_n))
         # If overfitting, EVAfter >> EVBefore. Also, we fit the value function
         # _after_ using it to compute the baseline to avoid introducing bias.
+        logz.log_tabular("pol_surr_before", infodict["pol_surr_before"])
+        logz.log_tabular("pol_surr_after",  infodict["pol_surr_after"])
+        logz.log_tabular("pol_kl_before",   infodict["pol_kl_before"])
+        logz.log_tabular("pol_kl_after",    infodict["pol_kl_after"])
+        logz.log_tabular("pol_ent_before",  infodict["pol_ent_before"])
+        logz.log_tabular("pol_ent_after",   infodict["pol_ent_after"])
+        logz.log_tabular("TimeElapsed",     elapsed_time)
         logz.dump_tabular()

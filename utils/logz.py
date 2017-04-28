@@ -78,14 +78,14 @@ def dump_tabular():
     Write all of the diagnostics from the current iteration
     """
     vals = []
-    print("-"*37)
+    print("-"*47)
     for key in G.log_headers:
         val = G.log_current_row.get(key, "")
         if hasattr(val, "__float__"): valstr = "%8.3g"%val
         else: valstr = val
-        print("| %15s | %15s |"%(key, valstr))
+        print("| %20s | %20s |"%(key, valstr))
         vals.append(val)
-    print("-"*37)
+    print("-"*47)
     if G.output_file is not None:
         if G.first_row:
             G.output_file.write("\t".join(G.log_headers))

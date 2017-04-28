@@ -58,11 +58,12 @@ def run_trpo_algorithm(args, vf_params, logdir):
     for i in range(args.n_iter):
         print("********** iteration %i ************"%i)
         infodict = {}
+        vfdict = {}
         paths = TRPOAgent.get_paths(seed_iter, env)
         TRPOAgent.compute_advantages(paths)
-        TRPOAgent.fit_value_function(paths)
+        TRPOAgent.fit_value_function(paths, vfdict)
         TRPOAgent.update_policy(paths, infodict)
-        TRPOAgent.log_diagnostics(paths, infodict)
+        TRPOAgent.log_diagnostics(paths, infodict, vfdict)
     print("\nAll done!")
 
 
