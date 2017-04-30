@@ -67,14 +67,13 @@ def gauss_KL(mu1, logstd1, mu2, logstd2):
     Returns the KL divergence for each of the n components in the minibatch,
     then we do a reduce_mean outside this.
     """
-    var1_na = tf.exp(2*logstd1)
-    var2_na = tf.exp(2*logstd2)
-    kl_n = tf.reduce_sum(0.5 * (logstd2 - logstd1 + (var1_na + tf.square(mu1-mu2))/var2_na - 1),
-                         axis=[1]) 
-    # This assertion sometimes fails. Maybe due to discretization errors?
-    #assert_op = tf.Assert(tf.reduce_all(kl_n > -0.001), [kl_n]) 
-    #with tf.control_dependencies([assert_op]):
-    #    kl_n = tf.identity(kl_n)
+    var1_na = tf.exp(2.*logstd1)
+    var2_na = tf.exp(2.*logstd2)
+    tmp_matrix = 2.*(logstd2 - logstd1) + (var1_na + tf.square(mu1-mu2))/var2_na - 1
+    kl_n = tf.reduce_sum(0.5 * tmp_matrix, axis=[1]) # Don't forget the 1/2 !!
+    assert_op = tf.Assert(tf.reduce_all(kl_n >= -0.0000001), [kl_n]) 
+    with tf.control_dependencies([assert_op]):
+        kl_n = tf.identity(kl_n)
     return kl_n
 
 
