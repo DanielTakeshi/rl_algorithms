@@ -240,10 +240,9 @@ class TRPO:
         """ A Tensorflow version of John Schulman's `flatgrad` function. It
         computes the gradients but does NOT apply them (for now). 
 
-        TODO I may need to put this inside the init method to avoid the
-        computational graph constantly being reconstructed. Otherwise, when it
-        gets called, isn't it calling the computational graph? But this is only
-        called during the `init` method anyway so it might be OK.
+        This is only called during the `init` of the TRPO graph, so I think it's
+        OK. Otherwise, wouldn't it be constantly rebuilding the computational
+        graph? Or doing something else? Eh, for now I think it's OK.
 
         Params:
             loss: The loss function we're optimizing, which I assume is always

@@ -421,6 +421,7 @@ def vpg_continuous(logdir, args, vf_params):
                            sy_adv_n: standardized_adv_n, 
                            sy_stepsize: stepsize
                 })
+
         kl, ent = sess.run([sy_kl, sy_ent],
                            feed_dict={sy_ob_no: ob_no, 
                                       sy_oldmean_na: oldmean_na,
