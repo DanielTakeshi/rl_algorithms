@@ -38,7 +38,7 @@ niter = args.niter
 
 # CAREFUL!
 if 'Pendulum-v0' in args.expdir:
-    niter = 500
+    niter = 400
 if ('Hopper-v1' in args.expdir) or ('Walker2d-v1' in args.expdir) or \
     ('HalfCheetah-v1' in args.expdir):
     niter = 3000

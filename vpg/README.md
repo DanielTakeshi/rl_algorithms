@@ -8,19 +8,7 @@ details. I then changed it to make it more general.
 
 ## Pendulum-v0
 
-Script I used:
-
-```
-#!/bin/bash
-python main.py Pendulum-v0 --vf_type linear --seed 4
-python main.py Pendulum-v0 --vf_type nn --seed 4
-python main.py Pendulum-v0 --vf_type linear --seed 6
-python main.py Pendulum-v0 --vf_type nn --seed 6
-python main.py Pendulum-v0 --vf_type linear --seed 8
-python main.py Pendulum-v0 --vf_type nn --seed 8
-```
-
-Here are the raw results:
+The raw runs based on `bash_scripts/pendulum.sh`:
 
 ![Pendulum-v0](figures/Pendulum-v0.png?raw=true)
 
@@ -31,8 +19,15 @@ And now the smoothed versions:
 I think it looks OK. Pendulum is a bit tricky to solve because it requires an
 adaptive learning rate but I still get close to about -100 or so. I'm not sure
 what the theoretical best solution is; maybe zero, but that seems impossible.
-The neural network is only slightly better with these results because the
-problem is so simple. The action dimension is just one.
+The neural network is only slightly better with these results (I guess?) because
+the problem is so simple. The action dimension is just one.
+
+Also, before I was getting good results, but a few KL divergences were negative.
+Here, that shouldn't be a problem, and the KL divergence axis starts at 0.0 as
+should be the case (matplotlib makes the axes automatically). To be clear, the
+KL divergence posted here is an *average* over KL divergences in a minibatch,
+but my assertions check for the non-negativity requirement at each minibatch
+component up to an error of 1e-6.
 
 # MuJoCo Baselines
 
