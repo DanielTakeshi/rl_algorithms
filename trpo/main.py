@@ -24,6 +24,7 @@ if "../" not in sys.path:
 from utils import logz
 from fxn_approx import *
 from trpo import *
+np.set_printoptions(edgeitems=100)
 
 
 def run_trpo_algorithm(args, vf_params, logdir):

@@ -13,6 +13,7 @@ import sys
 if "../" not in sys.path:
     sys.path.append("../")
 from utils import utils_pg as utils
+np.set_printoptions(edgeitems=100)
 
 
 class LinearValueFunction(object):
@@ -86,9 +87,9 @@ class NnValueFunction(object):
                                self.sy_ytarg: y
                     })
             if i == 0:
-                out["MSEBefore"] = err
+                out["MSEBefore"] = np.sqrt(err)
             if i == self.n_epochs-1:
-                out["MSEAfter"] = err
+                out["MSEAfter"] = np.sqrt(err)
 
         out["PredStdevAfter"] = self.predict(X).std()
         out["TargStdev"] = y.std()
