@@ -76,7 +76,7 @@ class NnValueFunction(object):
         assert X.shape[0] == y.shape[0]
         assert len(y.shape) == 1
         out = {}
-        out["PredStdevBefore"] = self.predict(X).std()
+        out["PredStdevBefore"]= self.predict(X).std()
 
         Xp = self.preproc(X)
         for i in range(self.n_epochs):
@@ -85,6 +85,10 @@ class NnValueFunction(object):
                     feed_dict={self.sy_ob_no: Xp,
                                self.sy_ytarg: y
                     })
+            if i == 0:
+                out["MSEBefore"] = err
+            if i == self.n_epochs-1:
+                out["MSEAfter"] = err
 
         out["PredStdevAfter"] = self.predict(X).std()
         out["TargStdev"] = y.std()

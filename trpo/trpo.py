@@ -382,6 +382,8 @@ class TRPO:
         logz.log_tabular("EpLenMean",  episode_lengths.mean())
         logz.log_tabular("EpLenMax",   episode_lengths.max())
         logz.log_tabular("RewPerStep", episode_rewards.sum()/episode_lengths.sum())
+        logz.log_tabular("vf_mse_before",      vfdict["MSEBefore"])
+        logz.log_tabular("vf_mse_after",       vfdict["MSEAfter"])
         logz.log_tabular("vf_PredStdevBefore", vfdict["PredStdevBefore"])
         logz.log_tabular("vf_PredStdevAfter",  vfdict["PredStdevAfter"])
         logz.log_tabular("vf_TargStdev",       vfdict["TargStdev"])
