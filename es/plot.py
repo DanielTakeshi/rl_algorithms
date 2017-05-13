@@ -9,6 +9,8 @@ I use this for InvertedPendulum:
 """
 
 import argparse
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -16,7 +18,7 @@ import pickle
 import seaborn as sns
 import sys
 from os.path import join
-from pylab import *
+from pylab import subplots
 plt.style.use('seaborn-darkgrid')
 sns.set_context(rc={'lines.markeredgewidth': 1.0})
 np.set_printoptions(edgeitems=100,linewidth=100,suppress=True)
