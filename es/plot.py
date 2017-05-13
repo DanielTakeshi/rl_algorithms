@@ -29,7 +29,7 @@ LOGDIR = 'outputs/'
 FIGDIR = 'figures/'
 title_size = 22
 tick_size = 18
-legend_size = 20
+legend_size = 17
 ysize = 18
 xsize = 18
 lw = 1
@@ -49,6 +49,8 @@ ATTRIBUTES = ["FinalAvgReturns",
 # Axes labels for environments.
 ENV_TO_YLABELS = {"InvertedPendulum-v1": [0,1000]}
 
+# Colors. In general we won't use all of these.
+COLORS = ['darkred', 'blue']
 
 def plot_one_dir(args, directory):
     """ The actual plotting code.
@@ -64,37 +66,38 @@ def plot_one_dir(args, directory):
     ### Figure 1: The log.txt file.
     num = len(ATTRIBUTES)
     fig, axes = subplots(num, figsize=(12,3*num))
-    for dd in directory:
+    for (dd, cc) in zip(directory, COLORS):
         A = np.genfromtxt(join(args.expdir, dd, 'log.txt'),
                           delimiter='\t', dtype=None, names=True)
         x = A['TotalIterations']
         for (i,attr) in enumerate(ATTRIBUTES):
-            axes[i].plot(x, A[attr], '-', lw=lw, color='darkred', 
-                         label=dd)
+            axes[i].plot(x, A[attr], '-', lw=lw, color=cc, label=dd)
             axes[i].set_ylabel(attr, fontsize=ysize)
             axes[i].tick_params(axis='x', labelsize=tick_size)
             axes[i].tick_params(axis='y', labelsize=tick_size)
-            axes[i].legend(loc='best',ncol=1)
+            axes[i].legend(loc='best', ncol=1, prop={'size':legend_size})
     plt.tight_layout()
     plt.savefig(args.out+'_log.png')
 
     ### Figure 2: Error regions.
-    fig = plt.figure(figsize=(12,10))
-    for dd in directory:
+    num = len(directory)
+    fig, axes = subplots(1,num, figsize=(12*num,10))
+    for (i, (dd, cc)) in enumerate(zip(directory, COLORS)):
         A = np.genfromtxt(join(args.expdir, dd, 'log.txt'),
                           delimiter='\t', dtype=None, names=True)
-        plt.plot(A['TotalIterations'], A["FinalAvgReturns"], 
-                 color='blue', marker='x', ms=ms, lw=lw, label=dd)
-        plt.fill_between(A['TotalIterations'],
-                         A["FinalAvgReturns"] - A["FinalStdReturns"],
-                         A["FinalAvgReturns"] + A["FinalStdReturns"],
-                         alpha = error_region_alpha,
-                         facecolor='y')
-    plt.legend(loc='best',ncol=1)
-    plt.ylim(ENV_TO_YLABELS[args.envname])
-    plt.title("Mean Episode Rewards (10 Trials)", fontsize=title_size)
-    plt.xlabel("ES Iterations", fontsize=xsize)
-    plt.ylabel("Rewards", fontsize=ysize)
+        axes[i].plot(A['TotalIterations'], A["FinalAvgReturns"], 
+                     color=cc, marker='x', ms=ms, lw=lw)
+        axes[i].fill_between(A['TotalIterations'],
+                             A["FinalAvgReturns"] - A["FinalStdReturns"],
+                             A["FinalAvgReturns"] + A["FinalStdReturns"],
+                             alpha = error_region_alpha,
+                             facecolor='y')
+        axes[i].set_ylim(ENV_TO_YLABELS[args.envname])
+        axes[i].tick_params(axis='x', labelsize=tick_size)
+        axes[i].tick_params(axis='y', labelsize=tick_size)
+        axes[i].set_title("Mean Episode Rewards ({})".format(dd), fontsize=title_size)
+        axes[i].set_xlabel("ES Iterations", fontsize=xsize)
+        axes[i].set_ylabel("Rewards", fontsize=ysize)
     plt.tight_layout()
     plt.savefig(args.out+'_rewards_std.png')
 
