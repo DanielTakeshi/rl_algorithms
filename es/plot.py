@@ -54,36 +54,43 @@ def plot_one_dir(args, directory):
     """ The actual plotting code.
 
     Assumes that we'll be plotting from one directory, which usually means
-    considering one random seed only, however I'll see what happens. For ES, we
-    should store the output at *every* timestep, so A['TotalIterations'] should
-    be like np.arange(...), but this is more general in case we figure out a way
-    to run for many more iterations.
+    considering one random seed only, however it's better to have multiple
+    random seeds so this code generalizes. For ES, we should store the output at
+    *every* timestep, so A['TotalIterations'] should be like np.arange(...), but
+    this generalizes in case Ray can help me run for many more iterations.
     """
     print("Now plotting based on directory {} ...".format(directory))
 
     ### Figure 1: The log.txt file.
-    A = np.genfromtxt(join(args.expdir, directory, 'log.txt'),
-                      delimiter='\t', dtype=None, names=True)
     num = len(ATTRIBUTES)
     fig, axes = subplots(num, figsize=(12,3*num))
-    x = A['TotalIterations']
-    for (i,attr) in enumerate(ATTRIBUTES):
-        axes[i].plot(x, A[attr], '-', lw=lw, color='darkred')
-        axes[i].set_ylabel(attr, fontsize=ysize)
-        axes[i].tick_params(axis='x', labelsize=tick_size)
-        axes[i].tick_params(axis='y', labelsize=tick_size)
+    for dd in directory:
+        A = np.genfromtxt(join(args.expdir, dd, 'log.txt'),
+                          delimiter='\t', dtype=None, names=True)
+        x = A['TotalIterations']
+        for (i,attr) in enumerate(ATTRIBUTES):
+            axes[i].plot(x, A[attr], '-', lw=lw, color='darkred', 
+                         label=dd)
+            axes[i].set_ylabel(attr, fontsize=ysize)
+            axes[i].tick_params(axis='x', labelsize=tick_size)
+            axes[i].tick_params(axis='y', labelsize=tick_size)
+            axes[i].legend(loc='best',ncol=1)
     plt.tight_layout()
     plt.savefig(args.out+'_log.png')
 
     ### Figure 2: Error regions.
     fig = plt.figure(figsize=(12,10))
-    plt.plot(A['TotalIterations'], A["FinalAvgReturns"], 
-             color='blue', marker='x', ms=ms, lw=lw)
-    plt.fill_between(A['TotalIterations'],
-                     A["FinalAvgReturns"] - A["FinalStdReturns"],
-                     A["FinalAvgReturns"] + A["FinalStdReturns"],
-                     alpha = error_region_alpha,
-                     facecolor='y')
+    for dd in directory:
+        A = np.genfromtxt(join(args.expdir, dd, 'log.txt'),
+                          delimiter='\t', dtype=None, names=True)
+        plt.plot(A['TotalIterations'], A["FinalAvgReturns"], 
+                 color='blue', marker='x', ms=ms, lw=lw, label=dd)
+        plt.fill_between(A['TotalIterations'],
+                         A["FinalAvgReturns"] - A["FinalStdReturns"],
+                         A["FinalAvgReturns"] + A["FinalStdReturns"],
+                         alpha = error_region_alpha,
+                         facecolor='y')
+    plt.legend(loc='best',ncol=1)
     plt.ylim(ENV_TO_YLABELS[args.envname])
     plt.title("Mean Episode Rewards (10 Trials)", fontsize=title_size)
     plt.xlabel("ES Iterations", fontsize=xsize)
@@ -101,8 +108,4 @@ if __name__ == "__main__":
     parser.add_argument("--out", type=str, help="full directory where to save")
     parser.add_argument("--envname", type=str)
     args = parser.parse_args()
-
-    # For now ... should have many seeds later.
-    assert len(os.listdir(args.expdir)) == 1 
-    directory = os.listdir(args.expdir)[0]
-    plot_one_dir(args, directory)
+    plot_one_dir(args, directory=os.listdir(args.expdir))
