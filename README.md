@@ -14,7 +14,7 @@ Here are the algorithms currently implemented or in progress:
 - [G-Learning](https://github.com/DanielTakeshi/rl_algorithms/tree/master/g_learning) (WIP)
 - [Deep-Q Networks](https://github.com/DanielTakeshi/rl_algorithms/tree/master/dqn) (should be correct)
 - [Behavioral Cloning](https://github.com/DanielTakeshi/rl_algorithms/tree/master/il) (WIP)
-- [Natural Evolution Strategies](https://github.com/DanielTakeshi/rl_algorithms/tree/master/es) (WIP)
+- [Natural Evolution Strategies](https://github.com/DanielTakeshi/rl_algorithms/tree/master/es) (should be correct)
 - [Vanilla Policy Gradients](https://github.com/DanielTakeshi/rl_algorithms/tree/master/vpg) (should be correct)
 - [Trust Region Policy Optimization](https://github.com/DanielTakeshi/rl_algorithms/tree/master/trpo) (WIP)
 

@@ -8,5 +8,6 @@ python main.py InvertedPendulum-v1 \
     --npop 50 \
     --seed 2 \
     --sigma 0.05 \
+    --snapshot_every_t_iter 25 \
     --test_trajs 10 \
     --verbose

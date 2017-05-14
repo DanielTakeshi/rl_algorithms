@@ -220,5 +220,11 @@ class ESAgent:
                 logz.log_tabular("TotalIterations",  i)
                 logz.dump_tabular()
 
-        # Save the policy so I can test it later.
+            # Save the policy so I can test it later.
+            if (i % args.snapshot_every_t_iter == 0):
+                # TODO
+                pass
+
+        # Save the *final* policy.
         #TODO
+        pass

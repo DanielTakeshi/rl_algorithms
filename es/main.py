@@ -33,6 +33,8 @@ if __name__ == "__main__":
             help='The random seed.')
     parser.add_argument('--sigma', type=float, default=0.1,
             help='Sigma (standard deviation) for the Gaussian noise.')
+    parser.add_argument('--snapshot_every_t_iter', type=int, default=100,
+            help='Save the model every t iterations so we can inspect later.')
     parser.add_argument('--test_trajs', type=int, default=10, 
             help='Number of evaluation trajectories after each iteration.')
     parser.add_argument('--verbose', action='store_true',
