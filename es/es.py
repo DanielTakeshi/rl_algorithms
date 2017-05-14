@@ -16,6 +16,7 @@ import tensorflow.contrib.layers as layers
 import time
 import utils
 from collections import defaultdict
+from gym import wrappers
 np.set_printoptions(edgeitems=100, linewidth=100, suppress=True, precision=5)
 
 
@@ -235,17 +236,31 @@ class ESAgent:
             pickle.dump(next_weights, f)
 
 
-    def test(self):
+    def test(self, just_one=True):
         """ This is for test-time evaluation. No training is doine here. By
-        default, iterate through every snapshot. 
+        default, iterate through every snapshot.  If `just_one` is true, this
+        only runs one set of weights, to ensure that we record right away since
+        OpenAI will only record subsets and less frequently.  Changing the loop
+        over snapshots is also needed.
         """
+        os.makedirs(self.args.directory+'/videos')
+        self.env = wrappers.Monitor(self.env, self.args.directory+'/videos', force=True)
+
         headdir = self.args.directory+'/snapshots/'
         snapshots = os.listdir(headdir)
         snapshots.sort()
         num_rollouts = 10
+        if just_one:
+            num_rollouts = 1
 
         for sn in snapshots:
             print("\n***** Currently on snapshot {} *****".format(sn))
+
+            ### Add your own criteria here.
+            # if "800" not in sn:
+            #     continue
+            ###
+
             with open(headdir+sn, 'rb') as f:
                 weights = pickle.load(f)
             self.sess.run(self.set_params_op, 

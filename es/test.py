@@ -11,6 +11,8 @@ Usage example:
 
     python test.py outputs/InvertedPendulum-v1/seed0003 --render
 
+Videos are recorded and stored in a special folder in the directory.
+
 (c) May 2017 by Daniel Seita
 """
 
@@ -27,13 +29,9 @@ if __name__ == "__main__":
             help='Use `--render` to visualize trajectories each iteration.')
     args = parser.parse_args()
 
-
     # Extract the old arguments and update the rendering.
     with open(args.directory+'/args.pkl', 'rb') as f:
         old_args = pickle.load(f)
-
-    print(old_args)
-    sys.exit()
     old_args.render = args.render
     old_args.directory = args.directory
 
