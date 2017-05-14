@@ -26,7 +26,7 @@ if __name__ == "__main__":
     parser.add_argument('--lrate_es', type=float, default=0.001,
             help='Learning rate for the ES gradient update.')
     parser.add_argument('--npop', type=int, default=100, 
-            help='Weight vectors to sample for ES')
+            help='Weight vectors to sample for ES (not counting the mirroring')
     parser.add_argument('--render', action='store_true',
             help='Use `--render` to visualize trajectories each iteration.')
     parser.add_argument('--seed', type=int, default=0,

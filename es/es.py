@@ -150,9 +150,16 @@ class ESAgent:
         """ Runs Evolution Strategies.
 
         Tricks used:
-            - Antithetic (i.e. mirrored) sampling 
+            - Antithetic (i.e. mirrored) sampling.
+            - Rank transformation, using OpenAI's code.
 
-        The final weights are saved and can be pre-loaded elsewhere.
+        Tricks avoided:
+            - Fixed Gaussian block. I like to just regenerate here.
+            - Virtual batch normalization, seems to be only for Atari games.
+            - Weight decay. Not sure how to do this.
+            - Action discretization. For now, it adds extra complexity.
+
+        Final weights are saved and can be pre-loaded elsewhere.
         """
         args = self.args
         t_start = time.time()
@@ -163,22 +170,33 @@ class ESAgent:
             stats = defaultdict(list)
 
             # Set stuff up for perturbing weights and determining fitness.
-            weights_old = self.sess.run(self.weights_v)
-            tmp = np.random.randn(args.npop / 2, self.num_ws)
-            N = np.concatenate((tmp, -tmp), axis=0)
-            scores = []
+            weights_old = self.sess.run(self.weights_v) # Shape (numw,)
+            eps_nw = np.random.randn(args.npop, self.num_ws)
+            scores_n2 = []
 
             for j in range(args.npop):
-                weights_new = weights_old + args.sigma * N[j]
+                # Mirrored sampling, positive case, +eps_j.
+                weights_new_pos = weights_old + args.sigma * eps_nw[j]
                 self.sess.run(self.set_params_op, 
-                              feed_dict={self.new_weights_v: weights_new})
-                scores.append(self._compute_return())
+                              feed_dict={self.new_weights_v: weights_new_pos})
+                rews_pos = self._compute_return()
 
-            # Determine the new weights based on the scores using a weighted
-            # update. F.shape=(npop,1), N.shape=(npop,num_weights).
-            F = (scores - np.mean(scores)) / (np.std(scores)+1e-8)
-            alpha = (args.lrate_es / (args.sigma*args.npop))
-            next_weights = weights_old + alpha * np.dot(N.T, F)
+                # Mirrored sampling, negative case, -eps_j.
+                weights_new_neg = weights_old - args.sigma * eps_nw[j]
+                self.sess.run(self.set_params_op, 
+                              feed_dict={self.new_weights_v: weights_new_neg})
+                rews_neg = self._compute_return()
+
+                scores_n2.append([rews_pos,rews_neg])
+
+            # Determine the new weights based on OpenAI's rank updating.
+            proc_returns_n2 = utils.compute_centered_ranks(np.array(scores_n2))
+            F_n = proc_returns_n2[:,0] - proc_returns_n2[:,1]
+            grad = np.dot(eps_nw.T, F_n)
+
+            # Apply the gradient update. TODO: Change this to ADAM.
+            alpha = (args.lrate_es / (args.sigma*args.npop*2))
+            next_weights = weights_old + alpha * grad
             self.sess.run(self.set_params_op, 
                           feed_dict={self.new_weights_v: next_weights})
 
@@ -190,10 +208,10 @@ class ESAgent:
             # Report relevant logs.
             if (i % args.log_every_t_iter == 0):
                 minutes = (time.time()-t_start) / 60.
-                logz.log_tabular("ScoresAvg",        np.mean(scores))
-                logz.log_tabular("ScoresStd",        np.std(scores))
-                logz.log_tabular("ScoresMax",        np.max(scores))
-                logz.log_tabular("ScoresMin",        np.min(scores))
+                logz.log_tabular("ScoresAvg",        np.mean(scores_n2))
+                logz.log_tabular("ScoresStd",        np.std(scores_n2))
+                logz.log_tabular("ScoresMax",        np.max(scores_n2))
+                logz.log_tabular("ScoresMin",        np.min(scores_n2))
                 logz.log_tabular("FinalAvgReturns",  np.mean(returns))
                 logz.log_tabular("FinalStdReturns",  np.std(returns))
                 logz.log_tabular("FinalMaxReturns",  np.max(returns))
