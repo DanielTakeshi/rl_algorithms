@@ -47,7 +47,8 @@ ATTRIBUTES = ["FinalAvgReturns",
               "ScoresMin"]
 
 # Axes labels for environments.
-ENV_TO_YLABELS = {"InvertedPendulum-v1": [0,1000]}
+ENV_TO_YLABELS = {"HalfCheetah-v1": [-800,1000],
+                  "InvertedPendulum-v1": [0,1000]}
 
 # Colors. In general we won't use all of these.
 COLORS = ['darkred', 'blue']
@@ -81,6 +82,8 @@ def plot_one_dir(args, directory):
 
     ### Figure 2: Error regions.
     num = len(directory)
+    if num == 1: 
+        num+= 1
     fig, axes = subplots(1,num, figsize=(12*num,10))
     for (i, (dd, cc)) in enumerate(zip(directory, COLORS)):
         A = np.genfromtxt(join(args.expdir, dd, 'log.txt'),
