@@ -9,7 +9,7 @@ See the bash scripts.
 The ES code I am using includes the following tricks:
 
 - Mirrored sampling
-- Normalization of features (different from the ES paper)
+- Ranking transformation
 
 I do not use the trick of instantiating a large block of Gaussian noise for each
 worker, because this code is designed to run sequentially.
@@ -24,6 +24,8 @@ the most critical step.
 # Results
 
 ## Inverted Pendulum
+
+Note: this was with normalized features, not the ranking transformation.
 
 Run with (for one seed):
 

@@ -8,6 +8,7 @@ cluster.
 import gym
 import logz
 import numpy as np
+import os
 import pickle
 import sys
 import tensorflow as tf
@@ -109,7 +110,9 @@ class ESAgent:
         minibatches later.
         
         Args:
-            test True if testing, False if part of training.
+            test True if testing, False if part of training. The testing could
+                be either the tests done after each weight update, or the tests
+                done as a result fo the `test` method.
 
         Returns:
             The scalar return to be evaluated by the ES agent.
@@ -220,7 +223,7 @@ class ESAgent:
                 logz.log_tabular("TotalIterations",  i)
                 logz.dump_tabular()
 
-            # Save the weights so I can test it later.
+            # Save the weights so I can test them later.
             if (i % args.snapshot_every_t_iter == 0):
                 itr = str(i).zfill(len(str(abs(args.es_iters))))
                 with open(self.log_dir+'/snapshots/weights_'+itr+'.pkl', 'wb') as f:
@@ -228,5 +231,30 @@ class ESAgent:
 
         # Save the *final* weights.
         itr = str(i).zfill(len(str(abs(args.es_iters))))
-        with open(self.log_dir+'/weights_'+itr+'_FINAL.pkl', 'wb') as f:
+        with open(self.log_dir+'/snapshots/weights_'+itr+'.pkl', 'wb') as f:
             pickle.dump(next_weights, f)
+
+
+    def test(self):
+        """ This is for test-time evaluation. No training is doine here. By
+        default, iterate through every snapshot. 
+        """
+        headdir = self.args.directory+'/snapshots/'
+        snapshots = os.listdir(headdir)
+        snapshots.sort()
+        num_rollouts = 10
+
+        for sn in snapshots:
+            print("\n***** Currently on snapshot {} *****".format(sn))
+            with open(headdir+sn, 'rb') as f:
+                weights = pickle.load(f)
+            self.sess.run(self.set_params_op, 
+                          feed_dict={self.new_weights_v: weights})
+            returns = []
+            for i in range(num_rollouts):
+                returns.append( self._compute_return(test=True) )
+            print("mean: \t{}".format(np.mean(returns)))
+            print("std: \t{}".format(np.std(returns)))
+            print("max: \t{}".format(np.max(returns)))
+            print("min: \t{}".format(np.min(returns)))
+            print("returns:\n{}".format(returns))
