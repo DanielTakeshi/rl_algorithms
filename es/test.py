@@ -35,7 +35,13 @@ if __name__ == "__main__":
     old_args.render = args.render
     old_args.directory = args.directory
 
-    # Now run the test using the same evolution strategy architecture.
+    # Run a test to see performance and/or save expert rollout data.
     session = utils.get_tf_session()
     es_agent = ESAgent(session, old_args, log_dir=None)
-    es_agent.test()
+    #es_agent.test(just_one=False)
+
+    ### PUT WEIGHT PICKLE FILE HERE ###
+    pklweights = args.directory+'/snapshots/weights_0800.pkl'
+    with open(pklweights, 'rb') as f:
+        weights = pickle.load(f)
+    es_agent.generate_rollout_data(weights=weights, num_rollouts=100)

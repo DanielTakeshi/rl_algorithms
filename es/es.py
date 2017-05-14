@@ -103,7 +103,7 @@ class ESAgent:
         return out, logstd_a
 
 
-    def _compute_return(self, test=False):
+    def _compute_return(self, test=False, store_info=False):
         """ Runs the current neural network policy. 
 
         For now, we assume we run one episode. Also, we expand the observations
@@ -114,6 +114,8 @@ class ESAgent:
             test True if testing, False if part of training. The testing could
                 be either the tests done after each weight update, or the tests
                 done as a result fo the `test` method.
+            store_info: True if storing info is desired, meaning that we return
+                observations and actions.
 
         Returns:
             The scalar return to be evaluated by the ES agent.
@@ -123,10 +125,16 @@ class ESAgent:
         done = False
         steps = 0
         total_rew = 0
+        observations = []
+        actions = []
 
         while not done:
             exp_obs = np.expand_dims(obs, axis=0)
             action = self.sess.run(self.sampled_ac, {self.ob_no:exp_obs})
+            observations.append(obs)
+            actions.append(action)
+            
+            # Apply the action *after* storing the current obs/action pair.
             obs, r, done, _ = self.env.step(action)
             total_rew += r
             steps += 1
@@ -135,7 +143,10 @@ class ESAgent:
             if steps >= max_steps or done:
                 break
 
-        return total_rew
+        if store_info:
+            return total_rew, observations, actions
+        else:
+            return total_rew
 
 
     def _print_summary(self):
@@ -237,7 +248,7 @@ class ESAgent:
 
 
     def test(self, just_one=True):
-        """ This is for test-time evaluation. No training is doine here. By
+        """ This is for test-time evaluation. No training is done here. By
         default, iterate through every snapshot.  If `just_one` is true, this
         only runs one set of weights, to ensure that we record right away since
         OpenAI will only record subsets and less frequently.  Changing the loop
@@ -273,3 +284,44 @@ class ESAgent:
             print("max: \t{}".format(np.max(returns)))
             print("min: \t{}".format(np.min(returns)))
             print("returns:\n{}".format(returns))
+
+
+    def generate_rollout_data(self, weights, num_rollouts=100):
+        """ Roll out the expert data and save the observations and actions for
+        imitation learning later.
+
+        For now, I'm just saving all observations and actions in their own
+        continuous list. I can't believe I didn't know about `extend` in Python
+        before ...
+        
+        Args:
+            weights: The desired weight vector.
+            num_rollouts: The number of expert rollouts to save.
+        """
+        os.makedirs(self.args.directory+'/expert_data')
+        headdir = self.args.directory+'/expert_data/'
+        self.sess.run(self.set_params_op, feed_dict={self.new_weights_v: weights})
+        returns = []
+        observations = []
+        actions = []
+
+        for i in range(num_rollouts):
+            print("rollout {}".format(i))
+            rew, obs_list, acts_list = self._compute_return(test=False, 
+                                                            store_info=True)
+            returns.append(rew)
+            observations.extend(obs_list)
+            actions.extend(acts_list)
+
+        print("returns", returns)
+        print("mean return", np.mean(returns))
+        print("std of return", np.std(returns))
+        expert_data = {'observations': np.array(observations),
+                       'actions': np.array(actions)}
+
+        # Save the data
+        print("obs-shape = {}".format(expert_data['observations'].shape))
+        print("act-shape = {}".format(expert_data['actions'].shape))
+        str_roll = str(num_rollouts).zfill(4)
+        np.save(headdir+"_"+str_roll+"rollouts", expert_data)
+        print("expert data has been saved.")
