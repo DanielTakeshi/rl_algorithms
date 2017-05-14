@@ -16,7 +16,9 @@ worker, because this code is designed to run sequentially.
 
 It uses TensorFlow but maybe that's not even needed for our purposes? Because
 there are no gradients to update a network. (We have to do gradient ascent, but
-that's done explicitly here and I don't think autodiff is necessary.)
+that's done explicitly here and I don't think autodiff is necessary.) Tensorflow
+and the GPU are mostly useful for the *forward* pass in RL, which is not even
+the most critical step.
 
 
 # Results

@@ -35,6 +35,7 @@ class ESAgent:
                 action space. (Right now only continuous is supported.)
         """
         assert continuous == True, "Error: only continuous==True is supported."
+        tf.set_random_seed(args.seed)
         self.sess = session
         self.args = args
         self.log_dir = log_dir
@@ -71,7 +72,6 @@ class ESAgent:
         if args.verbose:
             self._print_summary()
         self.sess.run(tf.global_variables_initializer())
-        logz.configure_output_dir(log_dir)
 
 
     def _make_network(self, data_in, out_dim):
@@ -220,11 +220,13 @@ class ESAgent:
                 logz.log_tabular("TotalIterations",  i)
                 logz.dump_tabular()
 
-            # Save the policy so I can test it later.
+            # Save the weights so I can test it later.
             if (i % args.snapshot_every_t_iter == 0):
-                # TODO
-                pass
+                itr = str(i).zfill(len(str(abs(args.es_iters))))
+                with open(self.log_dir+'/snapshots/weights_'+itr+'.pkl', 'wb') as f:
+                    pickle.dump(next_weights, f)
 
-        # Save the *final* policy.
-        #TODO
-        pass
+        # Save the *final* weights.
+        itr = str(i).zfill(len(str(abs(args.es_iters))))
+        with open(self.log_dir+'/weights_'+itr+'_FINAL.pkl', 'wb') as f:
+            pickle.dump(next_weights, f)

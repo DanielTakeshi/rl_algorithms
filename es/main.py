@@ -5,6 +5,9 @@ Use this script for setting the arguments.
 """
 
 import argparse
+import logz
+import os
+import pickle
 import tensorflow as tf
 import utils
 from es import ESAgent
@@ -40,10 +43,17 @@ if __name__ == "__main__":
     parser.add_argument('--verbose', action='store_true',
             help='Use `--verbose` for a few additional debugging messages.')
     args = parser.parse_args()
+
+    # Make the TensorFlow session and do some logic with handling arguments.
     session = utils.get_tf_session()
-    tf.set_random_seed(args.seed)
     log_dir = None
     if not args.do_not_save:
         log_dir = 'outputs/' +args.envname+ '/seed' +str(args.seed).zfill(4)
+        logz.configure_output_dir(log_dir)
+        os.makedirs(log_dir+'/snapshots/')
+        with open(log_dir+'/args.pkl','wb') as f:
+            pickle.dump(args, f)
+
+    # Build and run evolution strategies.
     es_agent = ESAgent(session, args, log_dir)
     es_agent.run_es()
