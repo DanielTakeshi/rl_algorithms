@@ -22,7 +22,6 @@ from pylab import subplots
 plt.style.use('seaborn-darkgrid')
 sns.set_context(rc={'lines.markeredgewidth': 1.0})
 np.set_printoptions(edgeitems=100,linewidth=100,suppress=True)
-NUM_THREADS = 32
 
 # Some matplotlib settings.
 LOGDIR = 'outputs/'

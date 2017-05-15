@@ -44,4 +44,6 @@ if __name__ == "__main__":
     pklweights = args.directory+'/snapshots/weights_0800.pkl'
     with open(pklweights, 'rb') as f:
         weights = pickle.load(f)
-    es_agent.generate_rollout_data(weights=weights, num_rollouts=100)
+    es_agent.generate_rollout_data(weights=weights, 
+                                   num_rollouts=1000,
+                                   trajs_not_transits=True)

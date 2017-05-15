@@ -286,20 +286,37 @@ class ESAgent:
             print("returns:\n{}".format(returns))
 
 
-    def generate_rollout_data(self, weights, num_rollouts=100):
+    def generate_rollout_data(self, weights, num_rollouts=100,
+            trajs_not_transits=False):
         """ Roll out the expert data and save the observations and actions for
         imitation learning later.
 
-        For now, I'm just saving all observations and actions in their own
-        continuous list. I can't believe I didn't know about `extend` in Python
-        before ...
-        
+        The output will depend on `trajs_not_transits`. If False, then
+        observations/actions are stored in continuous lists using Python's
+        `extend` keyword. if True, then we save them separately and have an
+        extra leading dimension. For instance, with InvertedPendulum saving at
+        the transit level with 100 rollouts, the observations and actions might
+        have shapes (100000,4) and (100000,1). With trajectories, the shapes
+        might be (100,1000,4) and (100,1000,1). This assumes that each of the
+        100 rollouts of IP-v1 gets the perfect 1000 score, which seems to
+        coincide with the number of timesteps.
+
+        By the way, the expert roll-outs may not have the same shape. Use the
+        `ENV_TO_SHAPE` to guard against this scenario. We zero-pad if needed.
+
         Args:
             weights: The desired weight vector.
             num_rollouts: The number of expert rollouts to save.
+            trajs_not_transits: If True, save at the level of *trajectories*.
         """
-        os.makedirs(self.args.directory+'/expert_data')
-        headdir = self.args.directory+'/expert_data/'
+        ENV_TO_SHAPE = {"InvertedPendulum-v1": (1000,4)}
+        if self.args.envname not in ENV_TO_SHAPE:
+            print("Error, this environment is not supported.")
+            sys.exit()
+    
+        headdir = self.args.directory+ '/expert_data'
+        if not os.path.exists(headdir):
+            os.makedirs(headdir)
         self.sess.run(self.set_params_op, feed_dict={self.new_weights_v: weights})
         returns = []
         observations = []
@@ -307,15 +324,34 @@ class ESAgent:
 
         for i in range(num_rollouts):
             print("rollout {}".format(i))
-            rew, obs_list, acts_list = self._compute_return(test=False, 
-                                                            store_info=True)
+            rew, obs_l, acts_l = self._compute_return(test=False, store_info=True)
             returns.append(rew)
-            observations.extend(obs_list)
-            actions.extend(acts_list)
+
+            # Save at the *trajectory* or *transit* level.
+            if trajs_not_transits:
+                observations.append(obs_l)
+                actions.append(acts_l)
+            else:
+                observations.extend(obs_l)
+                actions.extend(acts_l)
 
         print("returns", returns)
         print("mean return", np.mean(returns))
         print("std of return", np.std(returns))
+
+        # Fix padding issue to make lists have the same shape; we later make an array.
+        if trajs_not_transits:
+            for (i,l) in enumerate(observations):
+                obs_l = np.array(l)
+                print("{} shape {}".format(i, obs_l.shape))
+                if obs_l.shape != ENV_TO_SHAPE[self.args.envname]:
+                    result = np.zeros(ENV_TO_SHAPE[self.args.envname])
+                    result[:obs_l.shape[0],:obs_l.shape[1]] = obs_l
+                    observations[i] = result
+                    print("revised shape: {} ".format(result.shape))
+                else:
+                    observations[i] = obs_l
+
         expert_data = {'observations': np.array(observations),
                        'actions': np.array(actions)}
 
@@ -323,5 +359,7 @@ class ESAgent:
         print("obs-shape = {}".format(expert_data['observations'].shape))
         print("act-shape = {}".format(expert_data['actions'].shape))
         str_roll = str(num_rollouts).zfill(4)
-        np.save(headdir+"_"+str_roll+"rollouts", expert_data)
-        print("expert data has been saved.")
+        name = headdir+ "/" +self.args.envname+ "_" +str_roll+ "rollouts_trajs" \
+                +str(trajs_not_transits)
+        np.save(name, expert_data)
+        print("Expert data has been saved in: {}.npy".format(name))
