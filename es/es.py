@@ -302,15 +302,22 @@ class ESAgent:
         coincide with the number of timesteps.
 
         By the way, the expert roll-outs may not have the same shape. Use the
-        `ENV_TO_SHAPE` to guard against this scenario. We zero-pad if needed.
+        `ENV_TO_OBS_SHAPE` to guard against this scenario. We zero-pad if
+        needed.
+
+        TL;DR: leading dimension is the minibatch, second leading dimension is
+        the timestep, third is the obs/act shape. We *may* need a fourth but if
+        so let's just linearize so that we don't have to worry about it.
 
         Args:
             weights: The desired weight vector.
             num_rollouts: The number of expert rollouts to save.
             trajs_not_transits: If True, save at the level of *trajectories*.
         """
-        ENV_TO_SHAPE = {"InvertedPendulum-v1": (1000,4)}
-        if self.args.envname not in ENV_TO_SHAPE:
+        # These are the shapes we need **for each trajectory**.
+        ENV_TO_OBS_SHAPE = {"InvertedPendulum-v1": (1000,4)}
+        ENV_TO_ACT_SHAPE = {"InvertedPendulum-v1": (1000,1)}
+        if self.args.envname not in ENV_TO_OBS_SHAPE:
             print("Error, this environment is not supported.")
             sys.exit()
     
@@ -339,18 +346,24 @@ class ESAgent:
         print("mean return", np.mean(returns))
         print("std of return", np.std(returns))
 
-        # Fix padding issue to make lists have the same shape; we later make an array.
+        # Fix padding issue to make lists have the same shape; we later make an
+        # array.  Check each (ol,al), tuple of lists, to ensure shapes match. If
+        # the obs-list doesn't match, neither will the act-list, so test one.
         if trajs_not_transits:
-            for (i,l) in enumerate(observations):
-                obs_l = np.array(l)
-                print("{} shape {}".format(i, obs_l.shape))
-                if obs_l.shape != ENV_TO_SHAPE[self.args.envname]:
-                    result = np.zeros(ENV_TO_SHAPE[self.args.envname])
-                    result[:obs_l.shape[0],:obs_l.shape[1]] = obs_l
-                    observations[i] = result
-                    print("revised shape: {} ".format(result.shape))
-                else:
-                    observations[i] = obs_l
+            for (i,(ol,al)) in enumerate(zip(observations,actions)):
+                obs_l = np.array(ol)
+                act_l = np.array(al)
+                print("{} {} {}".format(i, obs_l.shape, act_l.shape))
+                if obs_l.shape != ENV_TO_OBS_SHAPE[self.args.envname]:
+                    result_o = np.zeros(ENV_TO_OBS_SHAPE[self.args.envname])
+                    result_a = np.zeros(ENV_TO_ACT_SHAPE[self.args.envname])
+                    result_o[:obs_l.shape[0],:obs_l.shape[1]] = obs_l
+                    result_a[:act_l.shape[0],:act_l.shape[1]] = act_l
+                    print("revised shapes: {} {}".format(result_o.shape, result_a.shape))
+                    obs_l = result_o
+                    act_l = result_a
+                observations[i] = obs_l
+                actions[i] = act_l
 
         expert_data = {'observations': np.array(observations),
                        'actions': np.array(actions)}
