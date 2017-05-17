@@ -286,33 +286,28 @@ class ESAgent:
             print("returns:\n{}".format(returns))
 
 
-    def generate_rollout_data(self, weights, num_rollouts=100,
-            trajs_not_transits=False):
+    def generate_rollout_data(self, weights, num_rollouts):
         """ Roll out the expert data and save the observations and actions for
         imitation learning later.
 
-        The output will depend on `trajs_not_transits`. If False, then
-        observations/actions are stored in continuous lists using Python's
-        `extend` keyword. if True, then we save them separately and have an
-        extra leading dimension. For instance, with InvertedPendulum saving at
-        the transit level with 100 rollouts, the observations and actions might
-        have shapes (100000,4) and (100000,1). With trajectories, the shapes
-        might be (100,1000,4) and (100,1000,1). This assumes that each of the
-        100 rollouts of IP-v1 gets the perfect 1000 score, which seems to
-        coincide with the number of timesteps.
-
-        By the way, the expert roll-outs may not have the same shape. Use the
-        `ENV_TO_OBS_SHAPE` to guard against this scenario. We zero-pad if
-        needed.
+        The observations and actions are stored in two separate lists of lists.
+        For instance, with InvertedPendulum and 100 rollouts, the shapes will be
+        be (100,1000,4) and (100,1000,1), with the 1000 representing 1000 time
+        steps. The actual expert roll-outs may not last the same time length.
+        Use the `ENV_TO_OBS_SHAPE` to guard against this scenario. We
+        **zero-pad** if needed (maybe randomizing is better? but MuJoCo is
+        continuous and actions are centered at zero...).
 
         TL;DR: leading dimension is the minibatch, second leading dimension is
-        the timestep, third is the obs/act shape. We *may* need a fourth but if
-        so let's just linearize so that we don't have to worry about it.
+        the timestep, third is the obs/act shape. If the obs/acts have two
+        dimensions, let's linearize to avoid worrying about it.
+
+        By the way, to experiment later with the *transits* only, just use the
+        same data here except shuffle the code. This happens elsewhere.
 
         Args:
             weights: The desired weight vector.
             num_rollouts: The number of expert rollouts to save.
-            trajs_not_transits: If True, save at the level of *trajectories*.
         """
         # These are the shapes we need **for each trajectory**.
         ENV_TO_OBS_SHAPE = {"InvertedPendulum-v1": (1000,4)}
@@ -330,18 +325,12 @@ class ESAgent:
         actions = []
 
         for i in range(num_rollouts):
-            print("rollout {}".format(i))
+            if i % 10 == 0: 
+                print("rollout {}".format(i))
             rew, obs_l, acts_l = self._compute_return(test=False, store_info=True)
             returns.append(rew)
-
-            # Save at the *trajectory* or *transit* level.
-            if trajs_not_transits:
-                observations.append(obs_l)
-                actions.append(acts_l)
-            else:
-                observations.extend(obs_l)
-                actions.extend(acts_l)
-
+            observations.append(obs_l)
+            actions.append(acts_l)
         print("returns", returns)
         print("mean return", np.mean(returns))
         print("std of return", np.std(returns))
@@ -349,21 +338,20 @@ class ESAgent:
         # Fix padding issue to make lists have the same shape; we later make an
         # array.  Check each (ol,al), tuple of lists, to ensure shapes match. If
         # the obs-list doesn't match, neither will the act-list, so test one.
-        if trajs_not_transits:
-            for (i,(ol,al)) in enumerate(zip(observations,actions)):
-                obs_l = np.array(ol)
-                act_l = np.array(al)
-                print("{} {} {}".format(i, obs_l.shape, act_l.shape))
-                if obs_l.shape != ENV_TO_OBS_SHAPE[self.args.envname]:
-                    result_o = np.zeros(ENV_TO_OBS_SHAPE[self.args.envname])
-                    result_a = np.zeros(ENV_TO_ACT_SHAPE[self.args.envname])
-                    result_o[:obs_l.shape[0],:obs_l.shape[1]] = obs_l
-                    result_a[:act_l.shape[0],:act_l.shape[1]] = act_l
-                    print("revised shapes: {} {}".format(result_o.shape, result_a.shape))
-                    obs_l = result_o
-                    act_l = result_a
-                observations[i] = obs_l
-                actions[i] = act_l
+        for (i,(ol,al)) in enumerate(zip(observations,actions)):
+            obs_l = np.array(ol)
+            act_l = np.array(al)
+            print("{} {} {}".format(i, obs_l.shape, act_l.shape))
+            if obs_l.shape != ENV_TO_OBS_SHAPE[self.args.envname]:
+                result_o = np.zeros(ENV_TO_OBS_SHAPE[self.args.envname])
+                result_a = np.zeros(ENV_TO_ACT_SHAPE[self.args.envname])
+                result_o[:obs_l.shape[0],:obs_l.shape[1]] = obs_l
+                result_a[:act_l.shape[0],:act_l.shape[1]] = act_l
+                print("revised shapes: {} {}".format(result_o.shape, result_a.shape))
+                obs_l = result_o
+                act_l = result_a
+            observations[i] = obs_l
+            actions[i] = act_l
 
         expert_data = {'observations': np.array(observations),
                        'actions': np.array(actions)}
@@ -372,7 +360,6 @@ class ESAgent:
         print("obs-shape = {}".format(expert_data['observations'].shape))
         print("act-shape = {}".format(expert_data['actions'].shape))
         str_roll = str(num_rollouts).zfill(4)
-        name = headdir+ "/" +self.args.envname+ "_" +str_roll+ "rollouts_trajs" \
-                +str(trajs_not_transits)
+        name = headdir+ "/" +self.args.envname+ "_" +str_roll+ "rollouts_trajs"
         np.save(name, expert_data)
         print("Expert data has been saved in: {}.npy".format(name))

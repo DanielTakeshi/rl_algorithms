@@ -9,9 +9,9 @@ the `Namespace` class means adding and updating is easy.
 
 Usage example:
 
-    python test.py outputs/InvertedPendulum-v1/seed0003 --render
+    python test.py outputs/InvertedPendulum-v1/seed0003
 
-Videos are recorded and stored in a special folder in the directory.
+Add --render if desired. Videos are recorded and stored in a special folder in the directory.
 
 (c) May 2017 by Daniel Seita
 """
@@ -25,6 +25,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('directory', type=str, 
             help='Must include envname and random seed!')
+    parser.add_argument('--numr', type=int, default=1000,
+            help='The number of expert rollouts to save.')
     parser.add_argument('--render', action='store_true',
             help='Use `--render` to visualize trajectories each iteration.')
     args = parser.parse_args()
@@ -38,12 +40,13 @@ if __name__ == "__main__":
     # Run a test to see performance and/or save expert rollout data.
     session = utils.get_tf_session()
     es_agent = ESAgent(session, old_args, log_dir=None)
+
+    # Option 1: just run a test (videos)
     #es_agent.test(just_one=False)
 
+    # Option 2: save expert roll-outs, dimensions = (#trajs, #times, state/act)
     ### PUT WEIGHT PICKLE FILE HERE ###
     pklweights = args.directory+'/snapshots/weights_0800.pkl'
     with open(pklweights, 'rb') as f:
         weights = pickle.load(f)
-    es_agent.generate_rollout_data(weights=weights, 
-                                   num_rollouts=1000,
-                                   trajs_not_transits=True)
+    es_agent.generate_rollout_data(weights=weights, num_rollouts=args.numr)
