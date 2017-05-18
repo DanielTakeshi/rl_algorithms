@@ -31,11 +31,19 @@ the most critical step.
 I originally ran this for 800 iterations, but it seems like 700 is also a safe
 upper bound on the number of iterations.
 
-Args (this one is with `npop` not counting the mirroring):
+Args (this one is with `npop` **not** counting the mirroring):
 
 ```
 Namespace(do_not_save=False, envname='InvertedPendulum-v1', es_iters=800,
 log_every_t_iter=2, lrate_es=0.005, npop=100, render=False, seed=4, sigma=0.1,
+snapshot_every_t_iter=50, test_trajs=10, verbose=True)
+```
+
+and (with revised `npop` and also with 700 iterations):
+
+```
+Namespace(do_not_save=False, envname='InvertedPendulum-v1', es_iters=700,
+log_every_t_iter=2, lrate_es=0.005, npop=200, render=False, seed=5, sigma=0.1,
 snapshot_every_t_iter=50, test_trajs=10, verbose=True)
 ```
 
