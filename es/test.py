@@ -9,7 +9,7 @@ the `Namespace` class means adding and updating is easy.
 
 Usage example:
 
-    python test.py outputs/InvertedPendulum-v1/seed0003
+    python test.py outputs/InvertedPendulum-v1/seed0004 --numr 2000
 
 Add --render if desired. Videos are recorded and stored in a special folder in the directory.
 
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     # Option 2: save expert roll-outs, dimensions = (#trajs, #times, state/act)
     ### PUT WEIGHT PICKLE FILE HERE ###
-    pklweights = args.directory+'/snapshots/weights_0800.pkl'
+    pklweights = args.directory+'/snapshots/weights_700.pkl'
     with open(pklweights, 'rb') as f:
         weights = pickle.load(f)
     es_agent.generate_rollout_data(weights=weights, num_rollouts=args.numr)

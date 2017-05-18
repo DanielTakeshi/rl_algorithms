@@ -25,6 +25,29 @@ the most critical step.
 
 ## Inverted Pendulum
 
+I originally ran this for 800 iterations, but it seems like 700 is also a safe
+upper bound on the number of iterations.
+
+Args:
+
+```
+Namespace(do_not_save=False, envname='InvertedPendulum-v1', es_iters=800,
+log_every_t_iter=2, lrate_es=0.005, npop=100, render=False, seed=4, sigma=0.1,
+snapshot_every_t_iter=50, test_trajs=10, verbose=True)
+```
+
+The results look good! The results reach the perfect score *faster* than with
+the Gaussian sampling of actions afterwards.
+
+![InvertedPendulum01](figures/InvertedPendulum-v1_log.png?raw=true)
+
+![InvertedPendulum02](figures/InvertedPendulum-v1_rewards_std.png?raw=true)
+
+
+## Inverted Pendulum (+Gaussian Sampling)
+
+This uses the Gaussian sampling, which we should *not* be doing.
+
 Note: I ran this twice with normalized features (seeds 0 and 1), twice with
 ranking transformation (seeds 2 and 3).
 
@@ -67,12 +90,12 @@ weight update. The plots named "Scores"-something contain statistics related to
 the 200 rollouts the agent made each iteration, where the 200 rollouts are each
 with some weight perturbation. (This is the `npop` parameter I have.)
 
-![InvertedPendulum01](figures/InvertedPendulum-v1_log.png?raw=true)
+![InvertedPendulum01](figures/InvertedPendulum-v1-old_log.png?raw=true)
 
-![InvertedPendulum02](figures/InvertedPendulum-v1_rewards_std.png?raw=true)
+![InvertedPendulum02](figures/InvertedPendulum-v1-old_rewards_std.png?raw=true)
 
 
-## Half Cheetah-v1
+## Half Cheetah-v1 (+Gaussian Sampling)
 
 Run with:
 
