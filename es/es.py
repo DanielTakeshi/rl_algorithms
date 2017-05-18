@@ -223,14 +223,14 @@ class ESAgent:
             # Report relevant logs.
             if (i % args.log_every_t_iter == 0):
                 minutes = (time.time()-t_start) / 60.
-                logz.log_tabular("ScoresAvg",        np.mean(scores_n2))
-                logz.log_tabular("ScoresStd",        np.std(scores_n2))
-                logz.log_tabular("ScoresMax",        np.max(scores_n2))
-                logz.log_tabular("ScoresMin",        np.min(scores_n2))
                 logz.log_tabular("FinalAvgReturns",  np.mean(returns))
                 logz.log_tabular("FinalStdReturns",  np.std(returns))
                 logz.log_tabular("FinalMaxReturns",  np.max(returns))
                 logz.log_tabular("FinalMinReturns",  np.min(returns))
+                logz.log_tabular("ScoresAvg",        np.mean(scores_n2))
+                logz.log_tabular("ScoresStd",        np.std(scores_n2))
+                logz.log_tabular("ScoresMax",        np.max(scores_n2))
+                logz.log_tabular("ScoresMin",        np.min(scores_n2))
                 logz.log_tabular("TotalTimeMinutes", minutes)
                 logz.log_tabular("TotalIterations",  i)
                 logz.dump_tabular()
