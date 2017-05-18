@@ -25,7 +25,8 @@ the most critical step.
 
 ## Inverted Pendulum
 
-Note: this was with normalized features, not the ranking transformation.
+Note: I ran this twice with normalized features (seeds 0 and 1), twice with
+ranking transformation (seeds 2 and 3).
 
 Run with (for one seed):
 
@@ -44,9 +45,9 @@ python main.py InvertedPendulum-v1 \
 
 And then do the same thing, but with seed 0001 instead.
 
-I then did seed 3, which has the actual reward rank transformation. It uses the
-following args (note: this time, `npop` gets doubled ... so they are equivalent
-... sorry for the confusion):
+I then did seeds 2 and 3, which has the actual reward rank transformation. Seed
+3 uses the following args (note: this time, `npop` gets doubled ... so they are
+equivalent ... sorry for the confusion):
 
 ```
 Namespace(do_not_save=False, envname='InvertedPendulum-v1', es_iters=1000,
@@ -55,7 +56,10 @@ snapshot_every_t_iter=50, test_trajs=10, verbose=True)
 ```
 
 Yowza! It works! Here's the figure log, followed by the rewards and standard
-deviations. They all reach the maximum score of 1000.
+deviations. They all reach the maximum score of 1000. I stopped seed 3 after 800
+iterations, so **if I need to use expert trajectories, use seed 2** because that
+one ran for the full 1000 iterations. The seed 2 trial took about 8 and 1/3
+hours.
 
 The plots named "Final"-something contain statistics related to the 10
 rollouts the agent made each iteration, *after* it made the evolution strategies
