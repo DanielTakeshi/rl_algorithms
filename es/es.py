@@ -182,10 +182,10 @@ class ESAgent:
 
             # Set stuff up for perturbing weights and determining fitness.
             weights_old = self.sess.run(self.weights_v) # Shape (numw,)
-            eps_nw = np.random.randn(args.npop, self.num_ws)
+            eps_nw = np.random.randn(args.npop/2, self.num_ws)
             scores_n2 = []
 
-            for j in range(args.npop):
+            for j in range(args.npop/2):
                 # Mirrored sampling, positive case, +eps_j.
                 weights_new_pos = weights_old + args.sigma * eps_nw[j]
                 self.sess.run(self.set_params_op, 
@@ -206,7 +206,7 @@ class ESAgent:
             grad = np.dot(eps_nw.T, F_n)
 
             # Apply the gradient update. TODO: Change this to ADAM.
-            alpha = (args.lrate_es / (args.sigma*args.npop*2))
+            alpha = (args.lrate_es / (args.sigma*args.npop))
             next_weights = weights_old + alpha * grad
             self.sess.run(self.set_params_op, 
                           feed_dict={self.new_weights_v: next_weights})

@@ -8,11 +8,14 @@ See the bash scripts.
 
 The ES code I am using includes the following tricks:
 
-- Mirrored sampling
+- Mirrored sampling 
 - Ranking transformation
 
 I do not use the trick of instantiating a large block of Gaussian noise for each
 worker, because this code is designed to run sequentially.
+
+Note: as of 05/18/2017, `npop` INCLUDES the mirroring so it must be divisible by
+two.
 
 It uses TensorFlow but maybe that's not even needed for our purposes? Because
 there are no gradients to update a network. (We have to do gradient ascent, but
@@ -28,7 +31,7 @@ the most critical step.
 I originally ran this for 800 iterations, but it seems like 700 is also a safe
 upper bound on the number of iterations.
 
-Args:
+Args (this one is with `npop` not counting the mirroring):
 
 ```
 Namespace(do_not_save=False, envname='InvertedPendulum-v1', es_iters=800,

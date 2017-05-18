@@ -50,7 +50,7 @@ ENV_TO_YLABELS = {"HalfCheetah-v1": [-800,1000],
                   "InvertedPendulum-v1": [0,1000]}
 
 # Colors. In general we won't use all of these.
-COLORS = ['gold', 'blue', 'red', 'black']
+COLORS = ['blue', 'red', 'gold', 'black']
 
 def plot_one_dir(args, directory):
     """ The actual plotting code.

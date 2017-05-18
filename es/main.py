@@ -28,8 +28,8 @@ if __name__ == "__main__":
             help='Controls the amount of time information is logged.')
     parser.add_argument('--lrate_es', type=float, default=0.001,
             help='Learning rate for the ES gradient update.')
-    parser.add_argument('--npop', type=int, default=100, 
-            help='Weight vectors to sample for ES (not counting the mirroring')
+    parser.add_argument('--npop', type=int, default=200, 
+            help='Weight vectors to sample for ES (INCLUDING the mirroring')
     parser.add_argument('--render', action='store_true',
             help='Use `--render` to visualize trajectories each iteration.')
     parser.add_argument('--seed', type=int, default=0,
@@ -43,6 +43,7 @@ if __name__ == "__main__":
     parser.add_argument('--verbose', action='store_true',
             help='Use `--verbose` for a few additional debugging messages.')
     args = parser.parse_args()
+    assert args.npop % 2 == 0 # Just to be consistent with my other code.
 
     # Make the TensorFlow session and do some logic with handling arguments.
     session = utils.get_tf_session()
