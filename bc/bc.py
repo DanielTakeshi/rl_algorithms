@@ -6,6 +6,14 @@ Behavioral cloning (continuous actions only). Tested environments:
     Hopper-v1
 
 For results, see the README(s) nearby.
+
+    TODO right now we assume we'll get our minibatches of data with `get_batch`
+    but this is inefficient if we decide to scale up and avoid subsampling the
+    data, where it would be better to have a list which supplies fixed,
+    pre-computed minibatches. I should fix this later.
+
+    TODO handle l2 regualrization? Though I have found that this doesn't have as
+    good an effect as I thought it would ...
 """
 
 import argparse
@@ -40,7 +48,8 @@ def get_tf_session():
 
 def load_dataset(args):
     """ Loads the dataset for BC and return training and validation splits,
-    separating the observations and actions.
+    separating the observations and actions, along with observation and action
+    shapes.
 
     This is also where we should handle the case of varying-length expert
     trajectories, even though these should be rare. (I kept those there so that
@@ -100,7 +109,9 @@ def load_dataset(args):
     print("(train) expert_act.shape = {}".format(expert_act_tr.shape))
     print("(valid) expert_obs.shape = {}".format(expert_obs_val.shape))
     print("(valid) expert_act.shape = {}\n".format(expert_act_val.shape))
-    return (expert_obs_tr, expert_act_tr, expert_obs_val, expert_act_val)
+
+    return (expert_obs_tr, expert_act_tr, expert_obs_val, expert_act_val, \
+            obs_shape, act_shape)
 
 
 def policy_model(data_in, action_dim):
@@ -157,50 +168,66 @@ def run_bc(session, args):
     ----------
     session: [TF Session]
         The TensorFlow session we're using.
-    args: []
-        Named The argparse from the user.
+    args: [Arguments Namespace]
+        Namedspace representing convenient arguments from the user.
     """
-
-    (expert_obs_tr, expert_act_tr, expert_obs_val, expert_act_val) = \
-            load_dataset(args)
-    sys.exit()
+    (expert_obs_tr, expert_act_tr, expert_obs_val, expert_act_val, obs_shape, \
+            act_shape) = load_dataset(args)
 
     # Build the data and network. For now, no casting (see DQN code).
-    x = tf.placeholder(tf.float32, shape=[None]+obs_shape)
-    y = tf.placeholder(tf.float32, shape=[None]+act_shape)
-    policy_fn = policy_model(data_in=x, 
-                             action_dim=expert_act.shape[1], 
-                             regu=args.regu,
-                             scope='policy')
+    x = tf.placeholder(tf.float32, shape=[None,obs_shape])
+    y = tf.placeholder(tf.float32, shape=[None,act_shape])
+    policy_fn = policy_model(data_in=x, action_dim=act_shape)
 
     # Construct the loss function and training information.
-    reg_l2_loss = tf.reduce_mean(
+    l2_loss = tf.reduce_mean(
         tf.reduce_sum((policy_fn-y)*(policy_fn-y), axis=[1])
     )
-    train_step = tf.train.AdamOptimizer(args.lrate).minimize(reg_l2_loss)
+    train_step = tf.train.AdamOptimizer(args.lrate).minimize(l2_loss)
 
     # Train the network using minibatches.
     session.run(tf.global_variables_initializer())
     for i in range(args.train_iters):
         b_xs, b_ys = get_batch(expert_obs_tr, expert_act_tr, args.batch_size)
-        _,tr_loss = session.run([train_step, reg_l2_loss], 
-                                feed_dict={x:b_xs, y:b_ys})
-        val_loss = session.run(reg_l2_loss, 
-                               feed_dict={x:expert_obs_val, y:expert_act_val})
-        if (i % 50 == 0):
+        _,tr_loss = session.run([train_step, l2_loss], feed_dict={x:b_xs, y:b_ys})
+
+        if (i % args.eval_freq == 0):
+            val_loss = session.run(l2_loss, feed_dict={x:expert_obs_val, y:expert_act_val})
             print("iter={}   tr_loss={:.5f}   val_loss={:.5f}".format(
                 str(i).zfill(4), tr_loss, val_loss))
+            returns = run_bc_test(args, session, policy_fn, x)
+            print("mean(returns): {}, std(returns): {}".format(
+                    np.mean(returns), np.std(returns)))
+            print("")
 
-    # Now run the agent in the world!
-    print("\nRunning the agent with our behaviorally cloned net.")
+    # Store the results so we can plot later.
+    ###print("\nreturns:\n{}".format(returns))
+    ###print("\nmean={:.4f}   std={:.4f}".format(np.mean(returns), np.std(returns)))
+    ###results = {'returns':returns, 'mean':np.mean(returns), 'std':np.std(returns)}
+    ###s1 = str(args.num_rollouts).zfill(4)
+    ###s2 = str(args.train_iters).zfill(5)
+    ###s3 = str(args.batch_size).zfill(3)
+    ###s4 = str(args.lrate)
+    ###s5 = str(args.regu)
+    ###np.save('results/'+args.envname+'_'+s1+'_'+s2+'_'+s3+'_'+s4+'_'+s5, results)
+    print("not done yet with plotting here ...")
+
+
+def run_bc_test(args, session, policy_fn, x):
+    """ Run the agent in the world! 
+    
+    Returns
+    -------
+    returns [list]
+        A list of returns, one for each of the `args.test_rollouts` rollouts.
+    """
     env = gym.make(args.envname)
     actions = []
     observations = []
     returns = []
     max_steps = env.spec.timestep_limit
 
-    for rr in range(args.test_iters):
-        print("rollout {}".format(rr))
+    for rr in range(args.test_rollouts):
         obs = env.reset()
         done = False
         totalr = 0
@@ -208,31 +235,15 @@ def run_bc(session, args):
         while not done:
             # Take steps by expanding observation (to get shapes to match).
             exp_obs = np.expand_dims(obs, axis=0)
-            action = np.squeeze( session.run(policy_fn, feed_dict={x:exp_obs}) )
-            observations.append(obs)
+            action = np.squeeze(session.run(policy_fn, feed_dict={x:exp_obs}))
             obs, r, done, _ = env.step(action)
             totalr += r
             steps += 1
-            if args.render:
-                env.render()
-            if (steps % 100 == 0): 
-                print("  {}/{} with totalr={}".format(steps, max_steps, totalr))
-            if steps >= max_steps:
-                break
-            if done:
-                print("done at step {} with totalr={}".format(steps, totalr))
+            if args.render: env.render()
+            if steps >= max_steps: break
         returns.append(totalr)
 
-    # Store the results so we can plot later.
-    print("\nreturns:\n{}".format(returns))
-    print("\nmean={:.4f}   std={:.4f}".format(np.mean(returns), np.std(returns)))
-    results = {'returns':returns, 'mean':np.mean(returns), 'std':np.std(returns)}
-    s1 = str(args.num_rollouts).zfill(4)
-    s2 = str(args.train_iters).zfill(5)
-    s3 = str(args.batch_size).zfill(3)
-    s4 = str(args.lrate)
-    s5 = str(args.regu)
-    np.save('results/'+args.envname+'_'+s1+'_'+s2+'_'+s3+'_'+s4+'_'+s5, results)
+    return returns
 
 
 if __name__ == "__main__":
@@ -240,10 +251,11 @@ if __name__ == "__main__":
     parser.add_argument('envname', type=str)
     parser.add_argument('num_rollouts', type=str)
     parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--eval_freq', type=int, default=50)
     parser.add_argument('--lrate', type=float, default=0.001)
-    parser.add_argument('--regu', type=float, default=0.0)
+    parser.add_argument('--regu', type=float, default=0.0) # don't use right now
     parser.add_argument('--subsamp_freq', type=int, default=10)
-    parser.add_argument('--test_iters', type=int, default=50)
+    parser.add_argument('--test_rollouts', type=int, default=10)
     parser.add_argument('--train_frac', type=float, default=0.7)
     parser.add_argument('--train_iters', type=int, default=5000)
     parser.add_argument('--render', action='store_true') # don't use right now
