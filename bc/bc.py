@@ -1,14 +1,11 @@
 """
-(c) April 2017 by Daniel Seita
+(c) June 2017 by Daniel Seita
 
-Behavioral cloning. Tested environments:
+Behavioral cloning (continuous actions only). Tested environments:
 
     Hopper-v1
 
-Some environments may have state or action dimensions which may cause the code
-to choke, so I should keep an eye out for those.
-
-For results, see the README.
+For results, see the README(s) nearby.
 """
 
 import argparse
@@ -20,11 +17,8 @@ import sys
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
 import tf_util
-
 plt.style.use('seaborn-darkgrid')
-np.set_printoptions(edgeitems=100,
-                    linewidth=100,
-                    suppress=True)
+np.set_printoptions(edgeitems=100, linewidth=100, suppress=True)
 
 
 def get_tf_session():
@@ -44,35 +38,107 @@ def get_tf_session():
     return session
 
 
-def policy_model(data_in, action_dim, regu, scope, reuse=False):
-    """ Creating a neural network.
-    
-    Args:
-        data_in: A Tensorflow placeholder for the input.
-        action_dim: The action dimension.
-        regu: The regularization constant.
-        scope: For naming variables (not useful to us now).
-        reuse: Whether to reuse the weights or not (ignore it).
+def load_dataset(args):
+    """ Loads the dataset for BC and return training and validation splits,
+    separating the observations and actions.
+
+    This is also where we should handle the case of varying-length expert
+    trajectories, even though these should be rare. (I kept those there so that
+    the leading dimension is the number of trajectories, in case we want to use
+    that information somehow, but right now we just mix among trajectories.) In
+    addition, it might be useful to subsample the data.
     """
-    with tf.variable_scope(scope, reuse=reuse):
+    # Load the numpy file and parse it.
+    str_roll = str(args.num_rollouts).zfill(3)
+    expert_data = np.load('expert_data/'+args.envname+'_'+str_roll+'.npy')
+    expert_obs = expert_data[()]['observations']
+    expert_act = expert_data[()]['actions']
+    expert_ret = expert_data[()]['returns']
+    expert_stp = expert_data[()]['steps']
+    N = expert_obs.shape[0]
+    assert N == expert_act.shape[0] == len(expert_ret) == len(expert_stp)
+    obs_shape = expert_obs.shape[2]
+    act_shape = expert_act.shape[2]
+    print("\nobs_shape = {}\nact_shape = {}".format(obs_shape, act_shape))
+    print("subsampling freq = {}".format(args.subsamp_freq))
+    print("expert_steps = {}".format(expert_stp))
+    print("expert_returns = {}".format(expert_ret))
+    print("(raw) expert_obs.shape = {}".format(expert_obs.shape))
+    print("(raw) expert_act.shape = {}".format(expert_act.shape))
+
+    # Choose a different starting point to subsample for each trajectory.
+    start_indices = np.random.randint(0, args.subsamp_freq, N)
+    
+    # Subsample expert data, remove actions which were only for padding.
+    expert_obs_l = []
+    expert_act_l = []
+    for i in range(N):
+        expert_obs_l.append(
+            expert_obs[i, start_indices[i]:expert_stp[i]:args.subsamp_freq, :]
+        )
+        expert_act_l.append(
+            expert_act[i, start_indices[i]:expert_stp[i]:args.subsamp_freq, :]
+        )
+
+    # Concatenate everything together.
+    expert_obs = np.concatenate(expert_obs_l, axis=0)
+    expert_act = np.concatenate(expert_act_l, axis=0)
+    print("(subsampled/reshaped) expert_obs.shape = {}".format(expert_obs.shape))
+    print("(subsampled/reshaped) expert_act.shape = {}".format(expert_act.shape))
+    assert expert_obs.shape[0] == expert_act.shape[0]
+
+    # Finally, form training and validation splits.
+    num_examples = expert_obs.shape[0]
+    num_train = int(args.train_frac * num_examples)
+    shuffled_inds = np.random.permutation(num_examples)
+    train_inds, valid_inds = shuffled_inds[:num_train], shuffled_inds[num_train:]
+    expert_obs_tr  = expert_obs[train_inds]
+    expert_act_tr  = expert_act[train_inds]
+    expert_obs_val = expert_obs[valid_inds]
+    expert_act_val = expert_act[valid_inds]
+    print("\n(train) expert_obs.shape = {}".format(expert_obs_tr.shape))
+    print("(train) expert_act.shape = {}".format(expert_act_tr.shape))
+    print("(valid) expert_obs.shape = {}".format(expert_obs_val.shape))
+    print("(valid) expert_act.shape = {}\n".format(expert_act_val.shape))
+    return (expert_obs_tr, expert_act_tr, expert_obs_val, expert_act_val)
+
+
+def policy_model(data_in, action_dim):
+    """ Create a neural network representing the BC policy. It will be trained
+    using standard supervised learning techniques.
+    
+    Parameters
+    ----------
+    data_in: [Tensor]
+        The input (a placeholder) to the network, with leading dimension
+        representing the batch size.
+    action_dim: [int]
+        Number of actions, each of which (at least for MuJoCo) is
+        continuous-valued.
+
+    Returns
+    ------- 
+    out [Tensor]
+        The output tensor which represents the predicted (or desired, if
+        testing) action to take for the agent.
+    """
+    with tf.variable_scope("BCNetwork", reuse=False):
         out = data_in
-        out = layers.fully_connected(out,
-                                     num_outputs=100,
-                                     weights_regularizer=layers.l2_regularizer(regu),
-                                     activation_fn=tf.nn.tanh)
-        out = layers.fully_connected(out,
-                                     num_outputs=100,
-                                     weights_regularizer=layers.l2_regularizer(regu),
-                                     activation_fn=tf.nn.tanh)
-        out = layers.fully_connected(out,
-                                     num_outputs=action_dim,
-                                     weights_regularizer=layers.l2_regularizer(regu),
-                                     activation_fn=None)
+        out = layers.fully_connected(out, num_outputs=100,
+                weights_initializer=layers.xavier_initializer(uniform=True),
+                activation_fn=tf.nn.tanh)
+        out = layers.fully_connected(out, num_outputs=100,
+                weights_initializer=layers.xavier_initializer(uniform=True),
+                activation_fn=tf.nn.tanh)
+        out = layers.fully_connected(out, num_outputs=action_dim,
+                weights_initializer=layers.xavier_initializer(uniform=True),
+                activation_fn=None)
         return out
 
 
 def get_batch(expert_obs, expert_act, batch_size):
-    """ Obtain a minibatch of samples. """
+    """ Obtain a minibatch of samples. Note that this is relatively inefficient,
+    and if dealing with very large datasets, use a list of samples instead. """
     indices = np.arange(expert_obs.shape[0])
     np.random.shuffle(indices)
     xs = expert_obs[indices[:batch_size]]
@@ -83,39 +149,21 @@ def get_batch(expert_obs, expert_act, batch_size):
 def run_bc(session, args):
     """ Runs behavioral cloning on some stored data.
 
-    It tries to mirror Ho & Ermon 2016. They trained on 70% of the data and
-    trained until validation error on the held-out set of 30% no longer
-    decreases. That doesn't seem to work well for us so I'll just eyeball the
-    validation (it's still important for tuning parameters). They trained with
-    ADAM and with minibatch sizes of 128.
+    It roughly mirrors the experimental setup of [Ho & Ermon, NIPS 2016]. They
+    trained using ADAM (batch size 128) on 70% of the data and trained until
+    validation error on the held-out set of 30% no longer decreases.
 
-    Args:
-        session: A Tensorflow session.
-        args: The argparse from the user.
+    Parameters
+    ----------
+    session: [TF Session]
+        The TensorFlow session we're using.
+    args: []
+        Named The argparse from the user.
     """
 
-    # Load the expert rollout data.
-    str_roll = str(args.num_rollouts).zfill(4)
-    expert_data = np.load('data/'+args.envname+'_'+str_roll+'.npy')
-    expert_obs = expert_data[()]['observations']
-    expert_act = np.squeeze(expert_data[()]['actions'])
-    N = expert_obs.shape[0]
-    assert N == expert_act.shape[0]
-    obs_shape = list(expert_obs.shape)[1:]
-    act_shape = list(expert_act.shape)[1:]
-
-    # Form training and validation splits.
-    num_tr = int(0.7*N)
-    indices = np.arange(N)
-    np.random.shuffle(indices)
-    expert_obs_tr  = expert_obs[indices[:num_tr]]
-    expert_act_tr  = expert_act[indices[:num_tr]]
-    expert_obs_val = expert_obs[indices[num_tr:]]
-    expert_act_val = expert_act[indices[num_tr:]]
-    print("\n(tr) expert_obs.shape = {}".format(expert_obs_tr.shape))
-    print("(tr) expert_act.shape = {}".format(expert_act_tr.shape))
-    print("(val) expert_obs.shape = {}".format(expert_obs_val.shape))
-    print("(val) expert_act.shape = {}\n".format(expert_act_val.shape))
+    (expert_obs_tr, expert_act_tr, expert_obs_val, expert_act_val) = \
+            load_dataset(args)
+    sys.exit()
 
     # Build the data and network. For now, no casting (see DQN code).
     x = tf.placeholder(tf.float32, shape=[None]+obs_shape)
@@ -193,10 +241,12 @@ if __name__ == "__main__":
     parser.add_argument('num_rollouts', type=str)
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--lrate', type=float, default=0.001)
-    parser.add_argument('--regu', type=float, default=0.001)
-    parser.add_argument('--train_iters', type=int, default=5000)
+    parser.add_argument('--regu', type=float, default=0.0)
+    parser.add_argument('--subsamp_freq', type=int, default=10)
     parser.add_argument('--test_iters', type=int, default=50)
-    parser.add_argument('--render', action='store_true')
+    parser.add_argument('--train_frac', type=float, default=0.7)
+    parser.add_argument('--train_iters', type=int, default=5000)
+    parser.add_argument('--render', action='store_true') # don't use right now
     args = parser.parse_args()
     session = get_tf_session()
     run_bc(session, args)
