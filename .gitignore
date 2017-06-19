@@ -2,6 +2,5 @@
 *.swp
 *.swo
 .DS_Store
-il/data/*
-il/results/*
 vpg/outputs/*/*/a.diff
+bc/logs/Hopper-v1/*

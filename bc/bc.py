@@ -20,6 +20,7 @@ import argparse
 import gym
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import pickle
 import sys
 import tensorflow as tf
@@ -148,8 +149,11 @@ def policy_model(data_in, action_dim):
 
 
 def get_batch(expert_obs, expert_act, batch_size):
-    """ Obtain a minibatch of samples. Note that this is relatively inefficient,
-    and if dealing with very large datasets, use a list of samples instead. """
+    """ 
+    Obtain a minibatch of samples. Note that this is relatively inefficient, and
+    if dealing with very large datasets without subsampling, use a list of
+    samples instead. 
+    """
     indices = np.arange(expert_obs.shape[0])
     np.random.shuffle(indices)
     xs = expert_obs[indices[:batch_size]]
@@ -157,12 +161,13 @@ def get_batch(expert_obs, expert_act, batch_size):
     return xs, ys
 
 
-def run_bc(session, args):
+def run_bc(session, args, log_dir):
     """ Runs behavioral cloning on some stored data.
 
     It roughly mirrors the experimental setup of [Ho & Ermon, NIPS 2016]. They
     trained using ADAM (batch size 128) on 70% of the data and trained until
-    validation error on the held-out set of 30% no longer decreases.
+    validation error on the held-out set of 30% no longer decreases. They also
+    substantially subsampled their data.
 
     Parameters
     ----------
@@ -170,7 +175,10 @@ def run_bc(session, args):
         The TensorFlow session we're using.
     args: [Arguments Namespace]
         Namedspace representing convenient arguments from the user.
+    log_dir: [string]
+        Where we save files to. FYI, it doesn't include the ending slash.
     """
+    env = gym.make(args.envname)
     (expert_obs_tr, expert_act_tr, expert_obs_val, expert_act_val, obs_shape, \
             act_shape) = load_dataset(args)
 
@@ -185,35 +193,37 @@ def run_bc(session, args):
     )
     train_step = tf.train.AdamOptimizer(args.lrate).minimize(l2_loss)
 
-    # Train the network using minibatches.
+    all_tr_loss = []
+    all_val_loss = []
+    all_iters = [] # Makes plotting easier since these are the x-coords.
+    all_returns = [] # Will turn into an array of arrays later.
     session.run(tf.global_variables_initializer())
+
     for i in range(args.train_iters):
         b_xs, b_ys = get_batch(expert_obs_tr, expert_act_tr, args.batch_size)
         _,tr_loss = session.run([train_step, l2_loss], feed_dict={x:b_xs, y:b_ys})
 
         if (i % args.eval_freq == 0):
+            # Only save/evaluate stuff every `args.eval_freq` iterations.
             val_loss = session.run(l2_loss, feed_dict={x:expert_obs_val, y:expert_act_val})
+            returns = run_bc_test(args, session, policy_fn, x, env)
             print("iter={}   tr_loss={:.5f}   val_loss={:.5f}".format(
                 str(i).zfill(4), tr_loss, val_loss))
-            returns = run_bc_test(args, session, policy_fn, x)
-            print("mean(returns): {}, std(returns): {}".format(
+            print("mean(returns): {}\nstd(returns): {}\n".format(
                     np.mean(returns), np.std(returns)))
-            print("")
+            all_iters.append(i)
+            all_tr_loss.append(tr_loss)
+            all_val_loss.append(val_loss)
+            all_returns.append(returns)
 
-    # Store the results so we can plot later.
-    ###print("\nreturns:\n{}".format(returns))
-    ###print("\nmean={:.4f}   std={:.4f}".format(np.mean(returns), np.std(returns)))
-    ###results = {'returns':returns, 'mean':np.mean(returns), 'std':np.std(returns)}
-    ###s1 = str(args.num_rollouts).zfill(4)
-    ###s2 = str(args.train_iters).zfill(5)
-    ###s3 = str(args.batch_size).zfill(3)
-    ###s4 = str(args.lrate)
-    ###s5 = str(args.regu)
-    ###np.save('results/'+args.envname+'_'+s1+'_'+s2+'_'+s3+'_'+s4+'_'+s5, results)
-    print("not done yet with plotting here ...")
+    # Store the results as numpy arrays so we can easily plot later.
+    np.save(log_dir +"/iters", np.array(all_iters))
+    np.save(log_dir +"/tr_loss", np.array(all_tr_loss))
+    np.save(log_dir +"/val_loss", np.array(all_val_loss))
+    np.save(log_dir +"/returns", np.array(all_returns))
 
 
-def run_bc_test(args, session, policy_fn, x):
+def run_bc_test(args, session, policy_fn, x, env):
     """ Run the agent in the world! 
     
     Returns
@@ -221,7 +231,6 @@ def run_bc_test(args, session, policy_fn, x):
     returns [list]
         A list of returns, one for each of the `args.test_rollouts` rollouts.
     """
-    env = gym.make(args.envname)
     actions = []
     observations = []
     returns = []
@@ -254,12 +263,25 @@ if __name__ == "__main__":
     parser.add_argument('--eval_freq', type=int, default=50)
     parser.add_argument('--lrate', type=float, default=0.001)
     parser.add_argument('--regu', type=float, default=0.0) # don't use right now
-    parser.add_argument('--subsamp_freq', type=int, default=10)
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--subsamp_freq', type=int, default=20)
     parser.add_argument('--test_rollouts', type=int, default=10)
     parser.add_argument('--train_frac', type=float, default=0.7)
     parser.add_argument('--train_iters', type=int, default=5000)
     parser.add_argument('--render', action='store_true') # don't use right now
     args = parser.parse_args()
+    print("\nUsing the following arguments: {}".format(args))
+
+    # Handle some logic with the log file and save the args there.
+    log_dir = "logs/"+args.envname+"/numroll_"+args.num_rollouts+"_seed_"+str(args.seed)
+    print("log_dir: {}\n".format(log_dir))
+    assert not os.path.exists(log_dir), "Error: log_dir already exists!"
+    os.makedirs(log_dir)
+    with open(log_dir+'/args.pkl','w') as f:
+        pickle.dump(args, f)
+
+    # Create a session, handle random seeds (well, partly...) and run.
     session = get_tf_session()
-    run_bc(session, args)
-    print("All done!")
+    np.random.seed(args.seed)
+    tf.set_random_seed(args.seed)
+    run_bc(session, args, log_dir)
