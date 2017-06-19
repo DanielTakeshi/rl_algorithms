@@ -30,9 +30,9 @@ To run BC, there are several steps:
   trajectories is saved into the file name by default and matches the values in
   [Generative Adversarial Imitation Learning paper][1] (see Table 1). 
   
-- TODO running the code TODO
+- **TODO running the code TODO**
 
-- TODO plotting TODO
+- To plot the code, it's simple: `python plot_bc.py`. No command line arguments!
 
 
 Other stuff if you're interested:
@@ -48,13 +48,21 @@ Other stuff if you're interested:
 
 # Results
 
-For Hopper, they're a bit odd, not sure why Ho & Ermon report such different
-values. I'll need to check their loss function and also to check if the expert
-policies are roughly the same dataset-wise as ours. This is what I see:
+Note that ant, halfcheetah, hopper, and walker use 4, 11, 18, and 25 expert
+rollouts since that follows the GAIL paper. The humanoid environment uses 80,
+160, and 240 expert trajectories.
+
+## Ant-v1
+
+## HalfCheetah-v1
+
+## Hopper-v1
 
 ![hopper](figures/Hopper-v1.png?raw=true)
 
-Yeah ... why does the best use 11 rollouts? Beats me.
+## Humanoid
+
+## Walker2d-v1
 
 
 

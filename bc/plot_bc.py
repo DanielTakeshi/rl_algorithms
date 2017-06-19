@@ -1,75 +1,115 @@
 """
 (c) April 2017 by Daniel Seita
 
-Code for plotting behavioral cloning.
+Code for plotting behavioral cloning. No need to use command line arguments,
+just run `python plot_bc.py`. Easy! Right now it generates two figures per
+environment, one with validation set losses and the other with returns. The
+latter is probably more interesting.
+
+TODO right now it really assumes we did 4, 11, 18, 25 ... really have to change
+that and get it to work for Humanoid (for instance).
 """
 
 import argparse
 import gym
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pickle
 import sys
+np.set_printoptions(edgeitems=100, linewidth=100, suppress=True)
+
+# Some matplotlib settings.
 plt.style.use('seaborn-darkgrid')
-np.set_printoptions(edgeitems=100,
-                    linewidth=100,
-                    suppress=True)
-FIG_DIR = 'figures/'
-RESULTS_DIR = 'results/'
-titlesize = 25
-LRATES = [0.0005, 0.001, 0.005, 0.01, 0.05]
-REGUS  = [0.0005, 0.001, 0.005, 0.01, 0.05]
+error_region_alpha = 0.3
+LOGDIR = 'logs/'
+FIGDIR = 'figures/'
+title_size = 22
+tick_size = 17
+legend_size = 17
+ysize = 18
+xsize = 18
+lw = 2
+ms = 8
+colors = ['red', 'blue', 'yellow', 'black']
 
+# TODO make this programmatic ... 
+ROLLOUTS = ['4', '11', '18', '25']
+R_TO_IJ = {'4':(0,2), '11':(1,0), '18':(1,1), '25':(1,2)}
+R_TO_COUNT = {'4':0, '11':0, '18':0, '25':0}
 
-def get_info_from_name(string):
-    """ Gets information I need from the file name.
-    
-    Removing last 4 removes the .npy extension. Returns: name, rollouts,
-    trainiters, batch size, lrate, and reg param. We don't need all of these but
-    it's easiest if no indices are missing. 
-    """
-    sp = string[:-4].split('_')
-    return (sp[0], sp[1], sp[2], sp[3], sp[4], sp[5])
+def plot_bc(edir):
+    """ Plot the results for this particular environment. """
+    subdirs = os.listdir(LOGDIR+edir)
+    print("plotting subdirs {}".format(subdirs))
+    fig,axarr = plt.subplots(2, 3, figsize=(24,15))
 
+    # A bunch of boring stuff.
+    axarr[0,0].set_title(edir+", Training Losses", fontsize=title_size)
+    axarr[0,1].set_title(edir+", Validation Losses", fontsize=title_size)
+    axarr[0,2].set_title(edir+", Returns, " +ROLLOUTS[0]+ " Rollouts", fontsize=title_size)
+    axarr[1,0].set_title(edir+", Returns, " +ROLLOUTS[1]+ " Rollouts", fontsize=title_size)
+    axarr[1,1].set_title(edir+", Returns, " +ROLLOUTS[2]+ " Rollouts", fontsize=title_size)
+    axarr[1,2].set_title(edir+", Returns, " +ROLLOUTS[3]+ " Rollouts", fontsize=title_size)
 
-def plot_bc(args):
-    """ Plot the results. Yeah, it's a big ugly ... """
+    # Don't forget to plot the expert performance here.
+    exp04 = np.mean(np.load("expert_data/"+edir+"_004.npy")[()]['returns'])
+    exp11 = np.mean(np.load("expert_data/"+edir+"_011.npy")[()]['returns'])
+    exp18 = np.mean(np.load("expert_data/"+edir+"_018.npy")[()]['returns'])
+    exp25 = np.mean(np.load("expert_data/"+edir+"_025.npy")[()]['returns'])
+    axarr[0,2].axhline(y=exp04, color='brown', lw=lw, linestyle='--', label='expert')
+    axarr[1,0].axhline(y=exp11, color='brown', lw=lw, linestyle='--', label='expert')
+    axarr[1,1].axhline(y=exp18, color='brown', lw=lw, linestyle='--', label='expert')
+    axarr[1,2].axhline(y=exp25, color='brown', lw=lw, linestyle='--', label='expert')
 
-    # Load the data (numpy stuff).
-    files = {}
-    for f in os.listdir(RESULTS_DIR):
-        if args.envname in f:
-            files[f] = (np.load(RESULTS_DIR+f))[()]
+    for dd in subdirs:
+        ddsplit = dd.split("_") # `dd` is of the form `numroll_X_seed_Y`
+        numroll, seed = ddsplit[1], ddsplit[3]
+        xcoord   = np.load(LOGDIR+edir+"/"+dd+"/iters.npy")
+        tr_loss  = np.load(LOGDIR+edir+"/"+dd+"/tr_loss.npy")
+        val_loss = np.load(LOGDIR+edir+"/"+dd+"/val_loss.npy")
+        returns  = np.load(LOGDIR+edir+"/"+dd+"/returns.npy")
+        mean_ret = np.mean(returns, axis=1)
+        std_ret  = np.std(returns, axis=1)
 
-    # Now plot and save w.r.t. different rollouts. I'm finally going to use this
-    # method of automating: save the indices in a dictionary and then just get
-    # the i,j from that, rather than looping through them.
-    fig, axarr = plt.subplots(2,2, figsize=(15,12))
-    nums_dict = {'0004':(0,0),  '0011':(0,1), '0018':(1,0), '0025':(1,1)}
+        # Playing with dictionaries
+        ijcoord = R_TO_IJ[numroll]
+        cc = colors[ R_TO_COUNT[numroll] ]
+        R_TO_COUNT[numroll] += 1
 
-    for numstr in nums_dict: 
-        i,j = nums_dict[numstr]
-        fs = sorted([k for k in files if numstr in k])
-        means = [files[s]['mean'] for s in fs]
-        axarr[i,j].set_title("{} {} Rollouts".format(args.envname,int(numstr)),
-                             fontsize=titlesize)
-        for lr in LRATES:
-            fnames = [n for n in fs if get_info_from_name(n)[4] == str(lr)]
-            means = [files[s]['mean'] for s in fnames]
-            axarr[i,j].plot(REGUS, means, lw=3, label="lrate = {}".format(lr))
-        axarr[i,j].legend(loc='lower left')
-        axarr[i,j].set_xscale('log')
-        axarr[i,j].set_xlim([0.00005,0.1])
-        axarr[i,j].set_ylim([0,2000])
+        axarr[ijcoord].plot(xcoord, mean_ret, lw=lw, color=cc, label=dd)
+        axarr[ijcoord].fill_between(xcoord, 
+                mean_ret-std_ret,
+                mean_ret+std_ret,
+                alpha=error_region_alpha,
+                facecolor=cc)
+        axarr[0,0].plot(xcoord, tr_loss, lw=lw, label=dd)
+        axarr[0,1].plot(xcoord, val_loss, lw=lw, label=dd)
 
+    for i in range(2):
+        for j in range(3):
+            if i == 0 and j == 0:
+                axarr[i,j].set_ylabel("Loss Training MBs", fontsize=ysize)
+            if i == 0 and j == 1:
+                axarr[i,j].set_ylabel("Loss Validation Set", fontsize=ysize)
+            else:
+                axarr[i,j].set_ylabel("Average Return", fontsize=ysize)
+            axarr[i,j].set_xlabel("Training Minibatches", fontsize=xsize)
+            axarr[i,j].tick_params(axis='x', labelsize=tick_size)
+            axarr[i,j].tick_params(axis='y', labelsize=tick_size)
+            axarr[i,j].legend(loc="best", prop={'size':legend_size})
+            axarr[i,j].legend(loc="best", prop={'size':legend_size})
+
+    axarr[0,0].set_yscale('log')
+    axarr[0,1].set_yscale('log')
     plt.tight_layout()
-    plt.savefig(FIG_DIR+args.envname+ ".png")
+    plt.savefig(FIGDIR+edir+".png")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('envname', type=str)
-    args = parser.parse_args()
-    plot_bc(args)
-    print("All done!")
+    env_dirs = [e for e in os.listdir(LOGDIR) if "text" not in e]
+    print("Plotting with one figure per env_dirs = {}".format(env_dirs))
+    for e in env_dirs:
+        plot_bc(e)

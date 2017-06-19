@@ -73,6 +73,7 @@ def load_dataset(args):
     print("subsampling freq = {}".format(args.subsamp_freq))
     print("expert_steps = {}".format(expert_stp))
     print("expert_returns = {}".format(expert_ret))
+    print("mean(expert_returns) = {}".format(np.mean(expert_ret))) # remember!
     print("(raw) expert_obs.shape = {}".format(expert_obs.shape))
     print("(raw) expert_act.shape = {}".format(expert_act.shape))
 
@@ -262,13 +263,13 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--eval_freq', type=int, default=50)
     parser.add_argument('--lrate', type=float, default=0.001)
-    parser.add_argument('--regu', type=float, default=0.0) # don't use right now
+    parser.add_argument('--regu', type=float, default=0.0) # don't use now
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--subsamp_freq', type=int, default=20)
-    parser.add_argument('--test_rollouts', type=int, default=10)
+    parser.add_argument('--test_rollouts', type=int, default=50) # GAIL paper used 50
     parser.add_argument('--train_frac', type=float, default=0.7)
     parser.add_argument('--train_iters', type=int, default=5000)
-    parser.add_argument('--render', action='store_true') # don't use right now
+    parser.add_argument('--render', action='store_true') # don't use now
     args = parser.parse_args()
     print("\nUsing the following arguments: {}".format(args))
 
