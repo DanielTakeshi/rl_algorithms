@@ -54,16 +54,19 @@ rollouts since that follows the GAIL paper. The humanoid environment uses 80,
 
 ## Ant-v1
 
+![ant](figures/Ant-v1.png?raw=true)
+
 ## HalfCheetah-v1
+
+![halfcheetah](figures/HalfCheetah-v1.png?raw=true)
 
 ## Hopper-v1
 
 ![hopper](figures/Hopper-v1.png?raw=true)
 
-## Humanoid
-
 ## Walker2d-v1
 
+![walker2d](figures/Walker2d-v1.png?raw=true)
 
 
 # Original Notes from Berkeley

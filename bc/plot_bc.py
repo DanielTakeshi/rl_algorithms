@@ -23,7 +23,7 @@ np.set_printoptions(edgeitems=100, linewidth=100, suppress=True)
 
 # Some matplotlib settings.
 plt.style.use('seaborn-darkgrid')
-error_region_alpha = 0.3
+error_region_alpha = 0.25
 LOGDIR = 'logs/'
 FIGDIR = 'figures/'
 title_size = 22
@@ -31,19 +31,21 @@ tick_size = 17
 legend_size = 17
 ysize = 18
 xsize = 18
-lw = 2
+lw = 3
 ms = 8
 colors = ['red', 'blue', 'yellow', 'black']
 
-# TODO make this programmatic ... 
+# TODO make this programmatic ...
 ROLLOUTS = ['4', '11', '18', '25']
 R_TO_IJ = {'4':(0,2), '11':(1,0), '18':(1,1), '25':(1,2)}
-R_TO_COUNT = {'4':0, '11':0, '18':0, '25':0}
 
 def plot_bc(edir):
     """ Plot the results for this particular environment. """
     subdirs = os.listdir(LOGDIR+edir)
     print("plotting subdirs {}".format(subdirs))
+
+    # Make it easy to count how many of each numrollouts we have.
+    R_TO_COUNT = {'4':0, '11':0, '18':0, '25':0}
     fig,axarr = plt.subplots(2, 3, figsize=(24,15))
 
     # A bunch of boring stuff.
