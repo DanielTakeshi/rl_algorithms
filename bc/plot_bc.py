@@ -54,7 +54,8 @@ def plot_bc(edir):
     axarr[1,1].set_title(edir+", Returns, " +ROLLOUTS[2]+ " Rollouts", fontsize=title_size)
     axarr[1,2].set_title(edir+", Returns, " +ROLLOUTS[3]+ " Rollouts", fontsize=title_size)
 
-    # Don't forget to plot the expert performance here.
+    # Don't forget to plot the expert performance here (really have to make this
+    # more general...).
     exp04 = np.mean(np.load("expert_data/"+edir+"_004.npy")[()]['returns'])
     exp11 = np.mean(np.load("expert_data/"+edir+"_011.npy")[()]['returns'])
     exp18 = np.mean(np.load("expert_data/"+edir+"_018.npy")[()]['returns'])
