@@ -39,7 +39,7 @@ To run BC, there are several steps:
   which will run and save expert trajectories in numpy arrays. They're not saved
   in the repository (ask if you want my version). By default, the number of
   trajectories is saved into the file name by default and matches the values in
-  the GAIL paper (see Table 1). 
+  the GAIL paper (see Table 1). No subsampling is done at this stage.
   
 - See the bash scripts for examples of running BC, such as
   `runbc_modern_stochastic.sh` which runs four MuJoCo environments for different
