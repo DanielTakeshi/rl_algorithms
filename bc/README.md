@@ -61,9 +61,15 @@ If you're interested:
 
 # Results
 
-Note that Ant-v1, HalfCheetah-v1, Hopper-v1, and Walker2d-v1 use 4, 11, 18, and
-25 expert rollouts since that follows the GAIL paper. Humanoid-v1 uses 80, 160,
-and 240 expert trajectories.
+Many subplots have three curves, each with one standard deviation error regions.
+The reason is that for a given BC run, each "evaluation point" (e.g. every 50
+training minibatches) I will run some "test-time" rollouts to see performance,
+but I also wanted to test with different initializations, hence the different
+random seeds.
+
+Ant-v1, HalfCheetah-v1, Hopper-v1, and Walker2d-v1 use 4, 11, 18, and 25 expert
+rollouts since that follows the GAIL paper. Humanoid-v1 uses 80, 160, and 240
+expert trajectories.
 
 Observations:
 
