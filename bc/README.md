@@ -5,14 +5,24 @@
 This runs Behavioral Cloning (BC) on MuJoCo environments. Specifically:
 
 - The expert is TRPO and provided from Jonathan Ho (see below).
+
 - Dataset consists of inputs (states=s) to labels (actions=a). They're
-  continuous, so minimize L2 loss.
-- Batch size of 128 state/action pairs each iteration.
-- Trained with Adam, with a step size of 1e-3.
-- Data is split into 70% training, 30% validation.
-- The BC network we use is the one which performed best on the validation set.
+  continuous, so minimize mean L2 loss across minibatches. It is split into 70%
+  training, 30% validation.
+
+- Expert data size is measured in terms of the number of expert rollouts we
+  collected. Note that, like the GAIL paper, I *subsample*, so the actual amount
+  of (s,a) pairs available for BC is much smaller.
+
 - The neural network (from TensorFlow) is fully connected and has two hidden
-  layers of 100 units each with hyperbolic tangent non-linearities.
+  layers of 100 units each with hyperbolic tangent non-linearities. It's trained
+  with Adam, with a step size of 1e-3, and has a batch size of 128.
+
+- For now, I plot validation set performance (i.e. loss) without really using
+  it. If I needed to be formal and had to pick a given iteration for which to
+  choose my BC expert (because different iterations mean different weights) I'd
+  choose the one with best validation set performance. I also plot training set
+  performance just for kicks.
 
 
 ## Running the Code
@@ -30,7 +40,9 @@ To run BC, there are several steps:
   trajectories is saved into the file name by default and matches the values in
   [Generative Adversarial Imitation Learning paper][1] (see Table 1). 
   
-- **TODO running the code TODO**
+- See the bash scripts for examples of running BC, such as
+  `runbc_modern_stochastic.sh` which runs four MuJoCo environments for different
+  expert dataset sizes random seeds.
 
 - To plot the code, it's simple: `python plot_bc.py`. No command line arguments!
 
@@ -38,9 +50,9 @@ To run BC, there are several steps:
 Other stuff if you're interested:
 
 - The expert performance that I'm seeing is roughly similar to what's reported
-  in the paper, with the exception of the Walker environment, but I may be
-  running a different version of it. See the output in `logs/gen_exp_data.text`
-  for details.
+  in the GAIL paper, with the exception of the Walker environment, but I may be
+  running a newer version from Jonathan Ho. See the output in
+  `logs/gen_exp_data.text` for details.
 
 - The `bash_scripts` directory also contains a file called `demo.bash`, which
   you can use to visualize expert trajectories, just for fun.
