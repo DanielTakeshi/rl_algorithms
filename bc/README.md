@@ -96,6 +96,14 @@ Observations:
 
 ![walker2d](figures/Walker2d-v1.png?raw=true)
 
+## Reacher-v1
+
+![reacher](figures/Reacher-v1.png?raw=true)
+
+## Humanoid-v1
+
+![humanoid](figures/Humanoid-v1.png?raw=true)
+
 
 # Original Notes from Berkeley
 
