@@ -1,11 +1,8 @@
 """
 (c) June 2017 by Daniel Seita
 
-Behavioral cloning (continuous actions only). Tested environments:
-
-    Hopper-v1
-
-For results, see the README(s) nearby.
+Behavioral cloning (continuous actions only).  For results, see the README(s)
+nearby.
 
     TODO right now we assume we'll get our minibatches of data with `get_batch`
     but this is inefficient if we decide to scale up and avoid subsampling the
