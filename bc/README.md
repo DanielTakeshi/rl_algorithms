@@ -2,7 +2,8 @@
 
 ## Main Idea
 
-This runs Behavioral Cloning (BC) on MuJoCo environments. Specifically:
+This runs Behavioral Cloning (BC) on MuJoCo environments, with settings inspired
+by the NIPS 2016 [GAIL paper][1]. Specifically:
 
 - The expert is TRPO and provided from Jonathan Ho (see below).
 
@@ -38,7 +39,7 @@ To run BC, there are several steps:
   which will run and save expert trajectories in numpy arrays. They're not saved
   in the repository (ask if you want my version). By default, the number of
   trajectories is saved into the file name by default and matches the values in
-  [Generative Adversarial Imitation Learning paper][1] (see Table 1). 
+  the GAIL paper (see Table 1). 
   
 - See the bash scripts for examples of running BC, such as
   `runbc_modern_stochastic.sh` which runs four MuJoCo environments for different
@@ -47,7 +48,7 @@ To run BC, there are several steps:
 - To plot the code, it's simple: `python plot_bc.py`. No command line arguments!
 
 
-Other stuff if you're interested:
+If you're interested:
 
 - The expert performance that I'm seeing is roughly similar to what's reported
   in the GAIL paper, with the exception of the Walker environment, but I may be
@@ -60,9 +61,18 @@ Other stuff if you're interested:
 
 # Results
 
-Note that ant, halfcheetah, hopper, and walker use 4, 11, 18, and 25 expert
-rollouts since that follows the GAIL paper. The humanoid environment uses 80,
-160, and 240 expert trajectories.
+Note that Ant-v1, HalfCheetah-v1, Hopper-v1, and Walker2d-v1 use 4, 11, 18, and
+25 expert rollouts since that follows the GAIL paper. Humanoid-v1 uses 80, 160,
+and 240 expert trajectories.
+
+Observations:
+
+- BC does well in Ant-v1 and HalfCheetah-v1. 
+
+- Hopper-v1 seems to be difficult, surprisingly. It has a relatively small state
+  space compared to Ant (11 vs 111).
+
+- Walker2d-v1 seems to be in between, BC doesn't get going until 25 rollouts.
 
 ## Ant-v1
 
