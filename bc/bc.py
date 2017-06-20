@@ -11,6 +11,9 @@ nearby.
 
     TODO handle l2 regualrization? Though I have found that this doesn't have as
     good an effect as I thought it would ...
+
+    TODO maybe save the weights with best validation set performance, along with
+    weights every 500 iterations or so? Then we can visualize it.
 """
 
 import argparse
@@ -185,6 +188,10 @@ def run_bc(session, args, log_dir):
     y = tf.placeholder(tf.float32, shape=[None,act_shape])
     policy_fn = policy_model(data_in=x, action_dim=act_shape)
 
+    # Save weights as a single vector to make saving/loading easy.
+    weights_bc = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='BCNetwork')
+    weight_vector = tf.concat([tf.reshape(w, [-1]) for w in weights_bc], axis=0)
+
     # Construct the loss function and training information.
     l2_loss = tf.reduce_mean(
         tf.reduce_sum((policy_fn-y)*(policy_fn-y), axis=[1])
@@ -213,6 +220,12 @@ def run_bc(session, args, log_dir):
             all_tr_loss.append(tr_loss)
             all_val_loss.append(val_loss)
             all_returns.append(returns)
+
+            # Save snapshot of the current weights. We can pick out the best one
+            # by seeing the minimizing index in `all_val_loss`.
+            itr = str(i).zfill(len(str(abs(args.train_iters))))
+            weights_numpy = session.run(weight_vector) 
+            np.save(log_dir+'/snapshots/weights_'+itr, weights_numpy)
 
     # Store the results as numpy arrays so we can easily plot later.
     np.save(log_dir +"/iters", np.array(all_iters))
@@ -258,12 +271,12 @@ if __name__ == "__main__":
     parser.add_argument('envname', type=str)
     parser.add_argument('num_rollouts', type=str)
     parser.add_argument('--batch_size', type=int, default=128)
-    parser.add_argument('--eval_freq', type=int, default=50)
+    parser.add_argument('--eval_freq', type=int, default=100)
     parser.add_argument('--lrate', type=float, default=0.001)
     parser.add_argument('--regu', type=float, default=0.0) # don't use now
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--subsamp_freq', type=int, default=20)
-    parser.add_argument('--test_rollouts', type=int, default=20) # GAIL paper used 50
+    parser.add_argument('--test_rollouts', type=int, default=50) # GAIL paper used 50
     parser.add_argument('--train_frac', type=float, default=0.7)
     parser.add_argument('--train_iters', type=int, default=5001) # GAIL paper used 20001
     parser.add_argument('--render', action='store_true') # don't use now
@@ -275,6 +288,7 @@ if __name__ == "__main__":
     print("log_dir: {}\n".format(log_dir))
     assert not os.path.exists(log_dir), "Error: log_dir already exists!"
     os.makedirs(log_dir)
+    os.makedirs(log_dir+'/snapshots/')
     with open(log_dir+'/args.pkl','w') as f:
         pickle.dump(args, f)
 
