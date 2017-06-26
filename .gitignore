@@ -1,6 +1,10 @@
+__pycache__
 *.pyc
 *.swp
 *.swo
 .DS_Store
+
 vpg/outputs/*/*/a.diff
+
 bc/data/*
+bc/expert_data/*

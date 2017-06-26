@@ -5,9 +5,6 @@ Code for plotting behavioral cloning. No need to use command line arguments,
 just run `python plot_bc.py`. Easy! Right now it generates two figures per
 environment, one with validation set losses and the other with returns. The
 latter is probably more interesting.
-
-TODO right now it really assumes we did 4, 11, 18, 25 ... really have to change
-that and get it to work for Humanoid (for instance).
 """
 
 import argparse
@@ -55,11 +52,12 @@ def plot_bc_modern(edir):
     exp04 = np.mean(np.load("expert_data/"+edir+"_004.npy")[()]['returns'])
     exp11 = np.mean(np.load("expert_data/"+edir+"_011.npy")[()]['returns'])
     exp18 = np.mean(np.load("expert_data/"+edir+"_018.npy")[()]['returns'])
-    exp25 = np.mean(np.load("expert_data/"+edir+"_025.npy")[()]['returns'])
     axarr[0,2].axhline(y=exp04, color='brown', lw=lw, linestyle='--', label='expert')
     axarr[1,0].axhline(y=exp11, color='brown', lw=lw, linestyle='--', label='expert')
     axarr[1,1].axhline(y=exp18, color='brown', lw=lw, linestyle='--', label='expert')
-    axarr[1,2].axhline(y=exp25, color='brown', lw=lw, linestyle='--', label='expert')
+    if 'Reacher' not in edir:
+        exp25 = np.mean(np.load("expert_data/"+edir+"_025.npy")[()]['returns'])
+        axarr[1,2].axhline(y=exp25, color='brown', lw=lw, linestyle='--', label='expert')
 
     for dd in subdirs:
         ddsplit = dd.split("_") # `dd` is of the form `numroll_X_seed_Y`
@@ -177,6 +175,7 @@ def plot_bc(e):
                      'HalfCheetah-v1': plot_bc_modern, 
                      'Hopper-v1': plot_bc_modern,
                      'Walker2d-v1': plot_bc_modern,
+                     'Reacher-v1': plot_bc_modern,
                      'Humanoid-v1': plot_bc_humanoid}
     env_to_method[e](e)
 
