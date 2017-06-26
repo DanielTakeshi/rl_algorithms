@@ -1,13 +1,5 @@
-"""
-To plot this, you need to provide the experiment directory. I did this on my
-laptop for the "homework"-related stuff:
-
-python plot_learning_curves.py outputs/part01/ --out figures/part_01.png
-python plot_learning_curves.py outputs/part02/ --out figures/part_02.png
-python plot_learning_curves.py outputs/part02/ --out figures/part_02_smooth.png --smooth
-
-For the refactored, generic vanilla policy gradient code, do (after first
-checking niter in this code...):
+""" 
+To plot, you need to provide the experiment directory. 
 
 python plot_learning_curves.py outputs/Pendulum-v0 --out figures/Pendulum-v0.png
 python plot_learning_curves.py outputs/Pendulum-v0 --out figures/Pendulum-v0_sm.png --smooth
@@ -22,6 +14,8 @@ import argparse
 import os
 from os.path import join
 import sys
+import matplotlib
+matplotlib.use('Agg')
 from pylab import *
 import matplotlib.pyplot as plt
 plt.style.use('seaborn-darkgrid')
@@ -37,6 +31,8 @@ dirnames = os.listdir(args.expdir)
 niter = args.niter
 
 # CAREFUL!
+if 'CartPole-v0' in args.expdir:
+    niter = 100
 if 'Pendulum-v0' in args.expdir:
     niter = 400
 if ('Hopper-v1' in args.expdir) or ('Walker2d-v1' in args.expdir) or \
@@ -46,7 +42,7 @@ print("dirnames:\n{}".format(dirnames))
 print("niter: {}".format(niter))
 
 # Matplotlib settings
-lw=2
+lw = 2
 font = 18
 fig, axes = subplots(4, figsize=(14,18))
 

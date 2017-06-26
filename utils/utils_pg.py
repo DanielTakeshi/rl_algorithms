@@ -1,7 +1,7 @@
 """
-Several utilities to reduce clutter in my VPG and TRPO codes.
+Several utilities to reduce clutter in my policy gradient codes.
 
-(c) April 2017 (mostly...) by Daniel Seita
+(c) April-June 2017 (mostly) by Daniel Seita
 """
 
 import numpy as np

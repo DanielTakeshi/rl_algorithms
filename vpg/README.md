@@ -1,8 +1,14 @@
 # Vanilla Policy Gradients
 
-This repository started out as the homework assignment from CS 294-112, Deep
-Reinforcement Learning, at UC Berkeley. See `cs294-112_stuff/homework.md` for
-details. I then changed it to make it more general.
+**TODO**: in progress, not finished yet, need to get updated results with new
+API, etc.
+
+This is the standard vanilla policy gradients with stochastic policies, either
+continuous or discrete. 
+
+I'm using Python 3.5.2 and Tensorflow 1.2.0. This code will not work with Python
+2.7.x.  Note to self: when running bash scripts in GNU screen mode, be sure to
+source my Python 3 conda environment.
 
 # Simple Baselines
 
