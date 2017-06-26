@@ -12,6 +12,19 @@ source my Python 3 conda environment.
 
 # Simple Baselines
 
+## CartPole-v0
+
+Based on `bash_scripts/CartPole-v0.sh`:
+
+![](figures/CartPole-v0.png?raw=true)
+
+And now the smoothed versions:
+
+![](figures/CartPole-v0_sm.png?raw=true)
+
+
+**TODO remove the stuff after this line ...**
+
 ## Pendulum-v0
 
 The raw runs based on `bash_scripts/pendulum.sh`:

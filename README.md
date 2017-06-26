@@ -16,8 +16,8 @@ Here are the algorithms currently implemented or in progress:
 - [Natural Evolution Strategies](https://github.com/DanielTakeshi/rl_algorithms/tree/master/es) (should be correct)
 - [Deep-Q Networks](https://github.com/DanielTakeshi/rl_algorithms/tree/master/dqn) (should be correct)
 - [Vanilla Policy Gradients](https://github.com/DanielTakeshi/rl_algorithms/tree/master/vpg) (should be correct)
-- [Deterministic Policy Gradients](https://github.com/DanielTakeshi/rl_algorithms/tree/master/dpg) (WIP)
-- [Deep Deterministic Policy Gradients](https://github.com/DanielTakeshi/rl_algorithms/tree/master/ddpg) (WIP)
+- [Deterministic Policy Gradients](https://github.com/DanielTakeshi/rl_algorithms/tree/master/dpg) (WIP, haven't started)
+- [Deep Deterministic Policy Gradients](https://github.com/DanielTakeshi/rl_algorithms/tree/master/ddpg) (WIP, haven't started)
 - [Trust Region Policy Optimization](https://github.com/DanielTakeshi/rl_algorithms/tree/master/trpo) (WIP)
 
 Note: "Vanilla Policy Gradients" refers to the REINFORCE algorithm, also known
