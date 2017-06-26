@@ -1,9 +1,6 @@
 # Vanilla Policy Gradients
 
-**TODO**: in progress, not finished yet, need to get updated results with new
-API, etc.
-
-This is the standard vanilla policy gradients with stochastic policies, either
+his is the standard vanilla policy gradients with stochastic policies, either
 continuous or discrete. I based this off of CS 294-112 starter code.
 
 I'm using Python 3.5.2 and Tensorflow 1.2.0. This code will not work with Python
@@ -18,20 +15,13 @@ Based on `bash_scripts/CartPole-v0.sh`:
 
 ![](figures/CartPole-v0.png?raw=true)
 
-And now the smoothed versions:
-
 ![](figures/CartPole-v0_sm.png?raw=true)
-
-
-**TODO remove the stuff after this line ...**
 
 ## Pendulum-v0
 
-The raw runs based on `bash_scripts/pendulum.sh`:
+Based on `bash_scripts/Pendulum-v0.sh`:
 
 ![Pendulum-v0](figures/Pendulum-v0.png?raw=true)
-
-And now the smoothed versions:
 
 ![Pendulum-v0_sm](figures/Pendulum-v0_sm.png?raw=true)
 
@@ -41,13 +31,9 @@ what the theoretical best solution is; maybe zero, but that seems impossible.
 The neural network is only slightly better with these results (I guess?) because
 the problem is so simple. The action dimension is just one.
 
-Also, before I was getting good results, but a few KL divergences were negative.
-Here, that shouldn't be a problem, and the KL divergence axis starts at 0.0 as
-should be the case (matplotlib makes the axes automatically). To be clear, the
-KL divergence posted here is an *average* over KL divergences in a minibatch,
-but my assertions check for the non-negativity requirement at each minibatch
-component up to an error of 1e-6.
 
+
+**TODO** haven't tested with these with new API ...
 # MuJoCo Baselines
 
 Tested on in alphabetical order:
