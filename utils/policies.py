@@ -137,13 +137,13 @@ class GaussianPolicy(StochasticPolicy):
         # The policy network and the logits, which are the mean of a Gaussian.
         # Then don't forget to make an "old" version of that for KL divergences.
         self.hidden1 = layers.fully_connected(self.ob_no, 
-                num_outputs=50,
+                num_outputs=32,
                 weights_initializer=layers.xavier_initializer(uniform=True),
-                activation_fn=tf.nn.tanh)
+                activation_fn=tf.nn.relu)
         self.hidden2 = layers.fully_connected(self.hidden1, 
-                num_outputs=50,
+                num_outputs=32,
                 weights_initializer=layers.xavier_initializer(uniform=True),
-                activation_fn=tf.nn.tanh)
+                activation_fn=tf.nn.relu)
         self.mean_na = layers.fully_connected(self.hidden2, 
                 num_outputs=ac_dim,
                 weights_initializer=layers.xavier_initializer(uniform=True),
