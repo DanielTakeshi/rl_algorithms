@@ -41,9 +41,8 @@ To run BC, there are several steps:
   trajectories is saved into the file name by default and matches the values in
   the GAIL paper (see Table 1). No subsampling is done at this stage.
   
-- See the bash scripts for examples of running BC, such as
-  `runbc_modern_stochastic.sh` which runs four MuJoCo environments for different
-  expert dataset sizes random seeds.
+- See the bash scripts for examples of running BC. For these, I used one script
+  to run everything.
 
 - To plot the code, it's simple: `python plot_bc.py`. No command line arguments!
 
@@ -79,6 +78,8 @@ Observations:
   space compared to Ant (11 vs 111).
 
 - Walker2d-v1 seems to be in between, BC doesn't get going until 25 rollouts.
+
+- How am I doing so poorly on Humanoid-v1?
 
 ## Ant-v1
 
