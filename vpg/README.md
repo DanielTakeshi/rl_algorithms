@@ -17,6 +17,11 @@ Based on `bash_scripts/CartPole-v0.sh`:
 
 ![](figures/CartPole-v0_sm.png?raw=true)
 
+Architectures:
+
+- **Policy**: (input) - 50 - (output), tanh
+- **NN vf**: (input) - 50 - 50 - (output), tanh
+
 ## Pendulum-v0
 
 Based on `bash_scripts/Pendulum-v0.sh`:
@@ -24,6 +29,11 @@ Based on `bash_scripts/Pendulum-v0.sh`:
 ![Pendulum-v0](figures/Pendulum-v0.png?raw=true)
 
 ![Pendulum-v0_sm](figures/Pendulum-v0_sm.png?raw=true)
+
+Architectures:
+
+- **Policy**: (input) - 32 - 32 - (output), relu
+- **NN vf**: (input) - 50 - 50 - (output), tanh
 
 I think it looks OK. Pendulum is a bit tricky to solve because it requires an
 adaptive learning rate but I still get close to about -100 or so. I'm not sure
