@@ -3,4 +3,4 @@
 *.swo
 .DS_Store
 vpg/outputs/*/*/a.diff
-bc/logs/Hopper-v1/*
+bc/data/*
