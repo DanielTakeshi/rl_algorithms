@@ -1,6 +1,6 @@
 # Vanilla Policy Gradients
 
-his is the standard vanilla policy gradients with stochastic policies, either
+This is the standard vanilla policy gradients with stochastic policies, either
 continuous or discrete. I based this off of CS 294-112 starter code.
 
 I'm using Python 3.5.2 and Tensorflow 1.2.0. This code will not work with Python
