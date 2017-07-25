@@ -3,13 +3,23 @@
 - Python 3.5
 - Tensorflow 1.2
 
+I'm following the original DDPG paper as much as possible, and using their
+"low-dimensional" representation, not the pixels-based one.
+
+## Pendulum-v0
+
+Action space: -2 to 2.
+
 ```
 python main.py Pendulum-v0
 ```
 
 It is NOT even close to being done ...
 
-Some useful references (in addition to the original paper):
+
+## References
+
+(These might be useful to supplement the original paper.)
 
 - http://pemami4911.github.io/blog/2016/08/21/ddpg-rl.html
 - https://github.com/rmst/ddpg

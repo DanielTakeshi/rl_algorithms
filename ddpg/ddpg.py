@@ -21,23 +21,15 @@ class DDPGAgent(object):
         self.sess = sess
         self.env = env
         self.args = args
-        assert len(env.observation_space.shape) == 1
-        assert len(env.action_space.shape) == 1
         self.ob_dim = env.observation_space.shape[0]
         self.ac_dim = env.action_space.shape[0]
 
-        # Placeholders for minibatches of data.
-        self.obs_t_BO    = tf.placeholder(tf.float32, [None,self.ob_dim])
-        self.act_t_BA    = tf.placeholder(tf.float32, [None,self.ac_dim])
-        self.rew_t_B     = tf.placeholder(tf.float32, [None])
-        self.obs_tp1_BO  = tf.placeholder(tf.float32, [None,self.ob_dim])
-        self.done_mask_B = tf.placeholder(tf.float32, [None]) # end of episode = 1.
-
-        # Construct the computational graphs and the experience replay buffer.
-        self.actor   = Actor(sess, env, args, self.obs_t_BO)
+        # Construct the networks and the experience replay buffer.
+        self.actor   = Actor(sess, env, args)
         self.critic  = Critic(sess, env, args)
         self.rbuffer = ReplayBuffer(args.replay_size, self.ob_dim, self.ac_dim)
 
+        self._debug_print()
         self.sess.run(tf.global_variables_initializer())
 
 
@@ -52,14 +44,8 @@ class DDPGAgent(object):
         for t in range(self.args.n_iter):
             print("\n*** DDPG Iteration {} ***".format(t))
 
-            # Select actions and store this stuff in the replay buffer.
-            act = self.sess.run(self.actor.actions_BA, {self.obs_t_BO: obs[None]})
-            act = act[0]
-
-            # Inject noise from our Gaussian process.
-            # TODO
-
-            # Now back to usual.
+            # Sample actions with noise injection and manage buffer.
+            act = self.actor.sample_action(obs, train=True)
             new_obs, rew, done, info = self.env.step(act)
             self.rbuffer.add_sample(s=obs, a=act, r=rew, done=done)
             if done:
@@ -98,7 +84,52 @@ class DDPGAgent(object):
         pass
 
 
-class Actor(object):
+    def _debug_print(self):
+        print("\n\t(A bunch of debug prints)\n")
+
+        print("\nActor weights")
+        for v in self.actor.weights:
+            shp = v.get_shape().as_list()
+            print("- {} shape:{} size:{}".format(v.name, shp, np.prod(shp)))
+        print("Total # of weights: {}.".format(self.actor.num_weights))
+
+        print("\nCritic weights")
+        for v in self.critic.weights:
+            shp = v.get_shape().as_list()
+            print("- {} shape:{} size:{}".format(v.name, shp, np.prod(shp)))
+        print("Total # of weights: {}.".format(self.critic.num_weights))
+
+
+
+class Network(object):
+    """ 
+    Just so the Actor and Critic nets don't have a lot of duplicate code. This
+    way they can refer to the similar sets of placeholders (but not the exact
+    same ones in memory, just a copy) and I can change it easily here.
+    """
+
+    def __init__(self, sess, env, args):
+        self.sess = sess
+        self.args = args
+
+        # Some random stuff.
+        assert len(env.observation_space.shape) == 1
+        assert len(env.action_space.shape) == 1
+        self.ob_dim = env.observation_space.shape[0]
+        self.ac_dim = env.action_space.shape[0]
+        self.ac_high = env.action_space.high
+        self.ac_low = env.action_space.low
+
+        # Placeholders for minibatches of data. End of episode = 1 for mask.
+        self.obs_t_BO    = tf.placeholder(tf.float32, [None,self.ob_dim])
+        self.act_t_BA    = tf.placeholder(tf.float32, [None,self.ac_dim])
+        self.rew_t_B     = tf.placeholder(tf.float32, [None])
+        self.obs_tp1_BO  = tf.placeholder(tf.float32, [None,self.ob_dim])
+        self.done_mask_B = tf.placeholder(tf.float32, [None])
+
+
+
+class Actor(Network):
     """ Given input as a batch of states, the actor deterministically provides
     us with actions, indicated as "mu" in the paper. 
     
@@ -107,37 +138,70 @@ class Actor(object):
     Gaussian noise for this purpose.
     """
 
-    def __init__(self, sess, env, args, obs_t_BO):
-        self.sess = sess
-        self.args = args
-        self.ac_dim = env.action_space.shape[0]
+    def __init__(self, sess, env, args):
+        super().__init__(sess, env, args)
 
-        self.actions_BA = self._build_net(input_BO=obs_t_BO)
-        #self.loss = ????????????
-        #self.update_op = tf.train.AdamOptimizer(args.step_size_actor).minimize(self.loss)
+        # The action network and its corresponding taget.
+        self.actions_BA      = self._build_net(self.obs_t_BO, scope='ActorNet')
+        self.actions_targ_BA = self._build_net(self.obs_t_BO, scope='TargActorNet')
+
+        # Collect weights since it's generally convenient to do so.
+        self.weights      = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='ActorNet')
+        self.weights_targ = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='TargActorNet')
+        self.weights_v      = tf.concat([tf.reshape(w, [-1]) for w in self.weights], axis=0)
+        self.weights_v_targ = tf.concat([tf.reshape(w, [-1]) for w in self.weights_targ], axis=0)
+
+        # These should be the same among both nets.
+        self.w_shapes = [w.get_shape().as_list() for w in self.weights]
+        self.num_weights = np.sum([np.prod(sh) for sh in self.w_shapes])
 
 
-    def _build_net(self, input_BO):
+    def _build_net(self, input_BO, scope):
         """ The Actor network.
         
         Uses ReLUs for all hidden layers, but a tanh to the output to bound the
         action. This follows their 'low-dimensional networks' using 400 and 300
-        units for the hidden layers.
+        units for the hidden layers. Set `reuse=False`. I don't use batch
+        normalization or their precise weight initialization.
         """
-        hidden1 = layers.fully_connected(input_BO,
-                num_outputs=400,
-                weights_initializer=layers.xavier_initializer(),
-                activation_fn=tf.nn.relu)
-        hidden2 = layers.fully_connected(hidden1, 
-                num_outputs=300,
-                weights_initializer=layers.xavier_initializer(),
-                activation_fn=tf.nn.relu)
-        actions_BA = layers.fully_connected(hidden2,
-                num_outputs=self.ac_dim,
-                weights_initializer=layers.xavier_initializer(),
-                activation_fn=tf.nn.tanh) # Note the tanh!
-        # TODO multiply actions by a constant?
-        return actions_BA
+        with tf.variable_scope(scope, reuse=False):
+            hidden1 = layers.fully_connected(input_BO,
+                    num_outputs=400,
+                    weights_initializer=layers.xavier_initializer(),
+                    activation_fn=tf.nn.relu)
+            hidden2 = layers.fully_connected(hidden1, 
+                    num_outputs=300,
+                    weights_initializer=layers.xavier_initializer(),
+                    activation_fn=tf.nn.relu)
+            actions_BA = layers.fully_connected(hidden2,
+                    num_outputs=self.ac_dim,
+                    weights_initializer=layers.xavier_initializer(),
+                    activation_fn=tf.nn.tanh) # Note the tanh!
+            # This should broadcast, but haven't tested with ac_dim > 1.
+            actions_BA = tf.multiply(actions_BA, self.ac_high)
+            return actions_BA
+
+
+    def sample_action(self, obs, train=True):
+        """ Samples an action.
+        
+        TODO we don't have their exact Gaussian noise injection process because
+        I can't figure out how to implement it. :-(
+
+        Parameters
+        ----------
+        obs: [np.array]
+            Represents current states. We assume we need to expand it.
+        train: [boolean]
+            True means we need to inject noise. False is for test evaluation.
+        """
+        act = self.sess.run(self.actions_BA, {self.obs_t_BO: obs[None]})
+        act = act[0]
+        if train:
+            return act + np.random.normal(loc=self.args.ou_noise_theta,
+                    scale=self.args.ou_noise_sigma, size=act.shape)
+        else:
+            return act
 
     
     def update_weights(self):
@@ -145,30 +209,55 @@ class Actor(object):
         pass
 
 
-class Critic(object):
+
+class Critic(Network):
     """ Computes Q(s,a) values to encourage the Actor to learn better policies.
 
     This is colloquially referred to as 'Q' in the paper.
     """
 
     def __init__(self, sess, env, args):
-        self.sess = sess
-        self.args = args
-        self.ac_dim = env.action_space.shape[0]
+        super().__init__(sess, env, args)
 
-        #self.qvals_n = self._build_net(????????)
-        #self.loss = ????????????
-        #self.update_op = tf.train.AdamOptimizer(args.critic_step_size).minimize(self.loss)
+        # The critic network (i.e. Q-values) and its corresponding target.
+        self.qvals_B      = self._build_net(self.obs_t_BO, self.act_t_BA, scope='CriticNet')
+        self.qvals_targ_B = self._build_net(self.obs_t_BO, self.act_t_BA, scope='TargCriticNet')
+
+        # Collect weights since it's generally convenient to do so.
+        self.weights      = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='CriticNet')
+        self.weights_targ = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='TargCriticNet')
+        self.weights_v      = tf.concat([tf.reshape(w, [-1]) for w in self.weights], axis=0)
+        self.weights_v_targ = tf.concat([tf.reshape(w, [-1]) for w in self.weights_targ], axis=0)
+
+        # These should be the same among both nets.
+        self.w_shapes = [w.get_shape().as_list() for w in self.weights]
+        self.num_weights = np.sum([np.prod(sh) for sh in self.w_shapes])
 
 
-    def _build_net(self):
-        """ The Critic network.
+    def _build_net(self, input_BO, acts_BO, scope):
+        """ The critic network.
         
         Use ReLUs for all hidden layers. The actions are not included until
-        **the second hidden layer**. TODO how do we do that? And what's the
-        architecture here???
+        **the second hidden layer**. The output consists of one Q-value for each
+        batch. Set `reuse=False`. I don't use batch normalization or their
+        precise weight initialization.
         """
-        pass
+        with tf.variable_scope(scope, reuse=False):
+            hidden1 = layers.fully_connected(input_BO,
+                    num_outputs=400,
+                    weights_initializer=layers.xavier_initializer(),
+                    activation_fn=tf.nn.relu)
+            # Insert the concatenation here. This should be fine, I think.
+            state_action = tf.concat(axis=1, values=[hidden1, acts_BO])
+            hidden2 = layers.fully_connected(state_action,
+                    num_outputs=300,
+                    weights_initializer=layers.xavier_initializer(),
+                    activation_fn=tf.nn.relu)
+            qvals_B = layers.fully_connected(hidden2,
+                    num_outputs=1,
+                    weights_initializer=layers.xavier_initializer(),
+                    activation_fn=None)
+            return qvals_B
 
 
     def update_weights(self):
