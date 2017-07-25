@@ -1,12 +1,13 @@
 # Deep Deterministic Policy Gradients
 
-In progress ... first  let me get the VPG and DPG repositories sorted, but I
-have a good idea of what to write here. Or should I just skip DPG entirely?
+- Python 3.5
+- Tensorflow 1.2
 
-TODOs:
+```
+python main.py Pendulum-v0
+```
 
-- Double check action bounds for environments I'm testing. 
-- Implement everything. Lol.
+It is NOT even close to being done ...
 
 Some useful references (in addition to the original paper):
 

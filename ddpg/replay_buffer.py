@@ -5,7 +5,7 @@ import sys
 class ReplayBuffer(object):
 
     def __init__(self, size, ob_dim, ac_dim):
-        """ A replay  buffer to store transitions (s,a,r,s') for DDPG.
+        """ A replay buffer to store transitions (s,a,r,s') for DDPG.
 
         - We save with numpy arrays, because there doesn't seem to be a better
           alternative. (I'm not sure if deques are memory efficient.) Create a
@@ -28,23 +28,24 @@ class ReplayBuffer(object):
           the next episode.
         
         - Values are 1 in the "done mask" if the next state corresponds to the
-          end of an episode.
+          end of an episode when doing env.step(), which is equivalent to saying
+          that the next state stored in this buffer is a start state.
 
         Parameters
         ----------
         size: [int]
             Maximum number of transitions to store in the buffer. When the
-            buffer overflows the old memories are dropped.
+            buffer overflows the old memories are over-written.
         ob_dim: [int]
-            State dimension, assumes an integer.
+            State dimension, assumes an integer and not a list or tuple.
         ac_dim: [int]
-            Action dimension, assumes an integer.
+            Action dimension, assumes an integer and not a list or tuple.
         """
         self.next_idx = 0
         self.num_in_buffer = 0
         self.size = size
-        self.states_No  = np.zeros((size, ob_dim), dtype=np.float32)
-        self.actions_Na = np.zeros((size, ac_dim), dtype=np.float32)
+        self.states_NO  = np.zeros((size, ob_dim), dtype=np.float32)
+        self.actions_NA = np.zeros((size, ac_dim), dtype=np.float32)
         self.rewards_N  = np.zeros((size,), dtype=np.float32)
         self.done_N     = np.zeros((size,), dtype=np.uint8)
 
@@ -62,12 +63,11 @@ class ReplayBuffer(object):
         the buffer size to be zero. However, we add the successor state in the
         next set of calls outside the code.
 
-        Use `self.next_idx` to store the index. Since it increments by one each
-        increment and also wraps around the total size, it will automatically
-        override old samples.
+        Use `self.next_idx` to store the index, NOT `self.num_in_buffer`. The
+        former will automatically override old samples.
         """
-        self.states_No[self.next_idx] = s 
-        self.actions_Na[self.next_idx] = a
+        self.states_NO[self.next_idx] = s 
+        self.actions_NA[self.next_idx] = a
         self.rewards_N[self.next_idx] = r
         self.done_N[self.next_idx] = int(done)
         self.num_in_buffer += 1
@@ -86,19 +86,22 @@ class ReplayBuffer(object):
         plus one ("tp1", i.e. the successor state) since it is ignored with the
         loss function. And the successor at that point would actually be the
         start of the _next_ episode.
+
+        The `-1` in the `max_index` computation handles annoying corner case of
+        having buffer partially filled and avoiding an un-touched index.
         """
         assert num < self.num_in_buffer
-        max_index = min(self.num_in_buffer, self.size)
+        max_index = min(self.num_in_buffer-1, self.size)
         indices = np.random.choice(max_index, num, replace=False)
 
-        # Make next indices from self.size back to zero.
-        below_thresh = (indices < self.size).astype(int)
-        indices_next = indices * below_thresh 
+        # Make next indices (+1) equal to index `self.size` back to zero.
+        below_thresh = ((indices+1) < self.size).astype(int)
+        indices_next = (indices+1) * below_thresh 
 
         # Get the minibatches for training purposes.
-        states_t_no   = self.states_No[indices]
-        actions_t_na  = self.actions_Na[indices]
-        rewards_t_n   = self.rewards_N[indices]
-        states_tp1_no = self.states_No[indices_next]
-        done_mask     = self.done_N[indices]
-        return (states_t_no, actions_t_na, rewards_t_n, states_tp1_no, done_mask)
+        states_t_BO   = self.states_NO[indices]
+        actions_t_BA  = self.actions_NA[indices]
+        rewards_t_B   = self.rewards_N[indices]
+        states_tp1_BO = self.states_NO[indices_next]
+        done_mask_B   = self.done_N[indices]
+        return (states_t_BO, actions_t_BA, rewards_t_B, states_tp1_BO, done_mask_B)
