@@ -48,7 +48,7 @@ class DDPGAgent(object):
         obs = self.env.reset()
 
         for t in range(self.args.n_iter):
-            if (t % self.args.log_every_t_iter == 0):
+            if (t % self.args.log_every_t_iter == 0) and (t > self.args.wait_until_rbuffer):
                 print("\n*** DDPG Iteration {} ***".format(t))
 
             # Sample actions with noise injection and manage buffer.
@@ -57,6 +57,7 @@ class DDPGAgent(object):
             self.rbuffer.add_sample(s=obs, a=act, r=rew, done=done)
             if done:
                 obs = self.env.reset()
+                num_episodes += 1
             else:
                 obs = new_obs
 
@@ -65,26 +66,22 @@ class DDPGAgent(object):
                 states_t_BO, actions_t_BA, rewards_t_B, states_tp1_BO, done_mask_B = \
                         self.rbuffer.sample(num=self.args.batch_size)
 
-                # TODO figure out clean way to provide info to actor/critic.
                 feed = {'obs_t_BO':    states_t_BO, 
                         'act_t_BA':    actions_t_BA, 
                         'rew_t_B':     rewards_t_B, 
                         'obs_tp1_BO':  states_tp1_BO, 
                         'done_mask_B': done_mask_B}
-                # Must also set the y_i target ... and watch out for `done`...
 
-                # Update the critic; they did this _before_ the actor update.
-                self.critic.update_weights()
-
-                # Update the actor; they did this _after_ the critic update.
-                self.actor.update_weights()
+                # Update the critic, get sampled policy gradients, update actor.
+                gradients = self.critic.update_weights(feed)
+                self.actor.update_weights(feed, gradients)
 
                 # Update both target networks.
                 self.critic.update_target_net()
                 self.actor.update_target_net()
 
             if (t % self.args.log_every_t_iter == 0) and (t > self.args.wait_until_rbuffer):
-                # Do some rollouts here.
+                # Do some rollouts here and then record statistics.
                 stats = self._do_rollouts()
                 hours = (time.time()-t_start) / (60*60.)
                 logz.log_tabular("MeanReward",      np.mean(stats['reward']))
@@ -92,6 +89,7 @@ class DDPGAgent(object):
                 logz.log_tabular("MinReward",       np.min(stats['reward']))
                 logz.log_tabular("StdReward",       np.std(stats['reward']))
                 logz.log_tabular("MeanLength",      np.mean(stats['length']))
+                logz.log_tabular("NumTrainingEps",  num_episodes)
                 logz.log_tabular("TotalTimeHours",  hours)
                 logz.log_tabular("TotalIterations", t)
                 logz.dump_tabular()
@@ -208,6 +206,12 @@ class Actor(Network):
         self.update_target_smooth = tf.group(*target_smooth)
         self.update_target_hard   = tf.group(*target_hard)
 
+        # The Actor _update_, with gradients provided by the Critic. TODO check!
+        self.act_grads_BA = tf.placeholder(tf.float32, [None,self.ac_dim])
+        self.actor_gradients = tf.gradients(self.actions_BA, self.weights, -self.act_grads_BA)
+        self.optimize = tf.train.AdamOptimizer(self.args.step_size_actor).\
+                    apply_gradients(zip(self.actor_gradients, self.weights))
+
 
     def _build_net(self, input_BO, scope):
         """ The Actor network.
@@ -269,9 +273,17 @@ class Actor(Network):
             self.sess.run(self.update_target_hard)
 
 
-    def update_weights(self):
+    def update_weights(self, f, gradients):
         """ Gradient-based update of current actor parameters. """
-        raise NotImplementedError()
+        feed = {
+            self.obs_t_BO:     f['obs_t_BO'],
+            self.act_t_BA:     f['act_t_BA'],
+            self.rew_t_B:      f['rew_t_B'],
+            self.obs_tp1_BO:   f['obs_tp1_BO'],
+            self.done_mask_B:  f['done_mask_B'],
+            self.act_grads_BA: gradients[0] # TODO check ..
+        }
+        self.sess.run(self.optimize, feed)
 
 
 
@@ -309,14 +321,33 @@ class Critic(Network):
         self.update_target_smooth = tf.group(*target_smooth)
         self.update_target_hard   = tf.group(*target_hard)
 
+        # The _critic_ uses y_i, the target for its loss. Depends on `done` mask! 
+        self.target_val_B = self.rew_t_B + (self.args.Q_gamma * self.qvals_targ_B) * (1 - self.done_mask_B)
+        self.l2_error = tf.reduce_mean(tf.square(self.target_val_B - self.qvals_B))
+        # TODO l2 weight decay?
+
+        # Use the built-in Adam optimizer, but might want to try gradient clipping?
+        self.optimize = tf.train.AdamOptimizer(self.args.step_size_critic).minimize(self.l2_error) 
+
+        # Then return this in the gradient step to provide to the Actor.
+        # TODO should check this, it _should_ deal with gradients row-wise, and
+        # then the gradient can be summed over B. Where is the summing over B?
+        # Is this also equivalent if I did targ = tf.reduce_sum(self.qvals_B)? I
+        # think so because it doesn't matter if we sum, action in b-th minibatch
+        # only (directly) affects the b-th Q-value and has a gradient, right?
+        self.action_grads = tf.gradients(self.qvals_B, self.act_t_BA)
+
 
     def _build_net(self, input_BO, acts_BO, scope):
         """ The critic network.
         
-        Use ReLUs for all hidden layers. The actions are not included until
-        **the second hidden layer**. The output consists of one Q-value for each
-        batch. Set `reuse=False`. I don't use batch normalization or their
+        Use ReLUs for all hidden layers. The output consists of one Q-value for
+        each batch. Set `reuse=False`. I don't use batch normalization or their
         precise weight initialization.
+
+        Unlike the critic, it uses actions here but they are NOT included in the
+        first hidden layer. In addition, we do a tf.reshape to get an output of
+        shape (B,), not (B,1). Seems like tf.squeeze doesn't work with `?`.
         """
         with tf.variable_scope(scope, reuse=False):
             hidden1 = layers.fully_connected(input_BO,
@@ -333,7 +364,7 @@ class Critic(Network):
                     num_outputs=1,
                     weights_initializer=layers.xavier_initializer(),
                     activation_fn=None)
-            return qvals_B
+            return tf.reshape(qvals_B, shape=[-1])
 
 
     def update_target_net(self, smooth=True):
@@ -348,6 +379,17 @@ class Critic(Network):
             self.sess.run(self.update_target_hard)
 
 
-    def update_weights(self):
-        """ Gradient-based update of current critic parameters. """
-        raise NotImplementedError()
+    def update_weights(self, f):
+        """ 
+        Gradient-based update of current Critic parameters.  Also return the
+        action gradients for the Actor update later.
+        """
+        feed = {
+            self.obs_t_BO:    f['obs_t_BO'],
+            self.act_t_BA:    f['act_t_BA'],
+            self.rew_t_B:     f['rew_t_B'],
+            self.obs_tp1_BO:  f['obs_tp1_BO'],
+            self.done_mask_B: f['done_mask_B']
+        }
+        action_grads, _ = self.sess.run([self.action_grads, self.optimize], feed)
+        return action_grads
