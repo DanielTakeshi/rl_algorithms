@@ -5,22 +5,25 @@ Make Actor and Critic subclasses of a NNet class? Not sure ...  for now, I'll
 put everything here but that might take a lot.
 """
 
+import gym
 import numpy as np
 import sys
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
 import time
 from replay_buffer import ReplayBuffer
+from collections import defaultdict
 sys.path.append("../")
 from utils import logz
 
 
 class DDPGAgent(object):
 
-    def __init__(self, sess, env, args):
+    def __init__(self, sess, env, test_env, args):
         self.sess = sess
-        self.env = env
         self.args = args
+        self.env = env
+        self.test_env = test_env
         self.ob_dim = env.observation_space.shape[0]
         self.ac_dim = env.action_space.shape[0]
 
@@ -29,8 +32,11 @@ class DDPGAgent(object):
         self.critic  = Critic(sess, env, args)
         self.rbuffer = ReplayBuffer(args.replay_size, self.ob_dim, self.ac_dim)
 
+        # Initialize then run, also setting current=target to start.
         self._debug_print()
         self.sess.run(tf.global_variables_initializer())
+        self.actor.update_target_net(smooth=False)
+        self.critic.update_target_net(smooth=False)
 
 
     def train(self):
@@ -42,7 +48,8 @@ class DDPGAgent(object):
         obs = self.env.reset()
 
         for t in range(self.args.n_iter):
-            print("\n*** DDPG Iteration {} ***".format(t))
+            if (t % self.args.log_every_t_iter == 0):
+                print("\n*** DDPG Iteration {} ***".format(t))
 
             # Sample actions with noise injection and manage buffer.
             act = self.actor.sample_action(obs, train=True)
@@ -58,30 +65,65 @@ class DDPGAgent(object):
                 states_t_BO, actions_t_BA, rewards_t_B, states_tp1_BO, done_mask_B = \
                         self.rbuffer.sample(num=self.args.batch_size)
 
-                feed = {self.obs_t_BO:    states_t_BO, 
-                        self.act_t_BA:    actions_t_BA, 
-                        self.rew_t_B:     rewards_t_B, 
-                        self.obs_tp1_BO:  states_tp1_BO, 
-                        self.done_mask_B: done_mask_B}
+                # TODO figure out clean way to provide info to actor/critic.
+                feed = {'obs_t_BO':    states_t_BO, 
+                        'act_t_BA':    actions_t_BA, 
+                        'rew_t_B':     rewards_t_B, 
+                        'obs_tp1_BO':  states_tp1_BO, 
+                        'done_mask_B': done_mask_B}
+                # Must also set the y_i target ... and watch out for `done`...
 
-                # Update actor and critic networks?
+                # Update the critic; they did this _before_ the actor update.
                 self.critic.update_weights()
+
+                # Update the actor; they did this _after_ the critic update.
                 self.actor.update_weights()
 
-                # Update target networks after some time?
-                # TODO
+                # Update both target networks.
+                self.critic.update_target_net()
+                self.actor.update_target_net()
 
-            if (t % self.args.log_every_t_iter == 0):
+            if (t % self.args.log_every_t_iter == 0) and (t > self.args.wait_until_rbuffer):
                 # Do some rollouts here.
+                stats = self._do_rollouts()
                 hours = (time.time()-t_start) / (60*60.)
+                logz.log_tabular("MeanReward",      np.mean(stats['reward']))
+                logz.log_tabular("MaxReward",       np.max(stats['reward']))
+                logz.log_tabular("MinReward",       np.min(stats['reward']))
+                logz.log_tabular("StdReward",       np.std(stats['reward']))
+                logz.log_tabular("MeanLength",      np.mean(stats['length']))
                 logz.log_tabular("TotalTimeHours",  hours)
                 logz.log_tabular("TotalIterations", t)
                 logz.dump_tabular()
 
 
-    def test(self):
-        """ """
-        pass
+    def _do_rollouts(self):
+        """ 
+        Some rollouts to evaluate the agent's progress.  Returns a dictionary
+        containing relevant statistics. 
+        """
+        num_episodes = 50
+        stats = defaultdict(list)
+
+        for i in range(num_episodes):
+            obs = self.test_env.reset()
+            ep_time = 0
+            ep_reward = 0
+
+            # Run one episode ...
+            while True:
+                act = self.actor.sample_action(obs, train=False)
+                new_obs, rew, done, info = self.test_env.step(act)
+                ep_time += 1
+                ep_reward += rew
+                if done:
+                    break
+
+            # ... and collect its information here.
+            stats['length'].append(ep_time)
+            stats['reward'].append(ep_reward)
+
+        return stats
 
 
     def _debug_print(self):
@@ -103,9 +145,9 @@ class DDPGAgent(object):
 
 class Network(object):
     """ 
-    Just so the Actor and Critic nets don't have a lot of duplicate code. This
-    way they can refer to the similar sets of placeholders (but not the exact
-    same ones in memory, just a copy) and I can change it easily here.
+    Just so the Actor and Critic nets don't have more duplicate code. This way
+    they can refer to the similar sets of placeholders (but not the exact same
+    ones in memory, just a copy) and I can change it easily here.
     """
 
     def __init__(self, sess, env, args):
@@ -154,6 +196,17 @@ class Actor(Network):
         # These should be the same among both nets.
         self.w_shapes = [w.get_shape().as_list() for w in self.weights]
         self.num_weights = np.sum([np.prod(sh) for sh in self.w_shapes])
+
+        # Update the target action network. Provide hard and smooth updates.
+        target_smooth = []
+        target_hard = []
+        for var, var_target in zip(sorted(self.weights,      key=lambda v: v.name),
+                                   sorted(self.weights_targ, key=lambda v: v.name)):
+            update_sm = self.args.tau * var + (1 - self.args.tau) * var_target
+            target_smooth.append(var_target.assign(update_sm))
+            target_hard.append(var_target.assign(var))
+        self.update_target_smooth = tf.group(*target_smooth)
+        self.update_target_hard   = tf.group(*target_hard)
 
 
     def _build_net(self, input_BO, scope):
@@ -204,9 +257,21 @@ class Actor(Network):
             return act
 
     
+    def update_target_net(self, smooth=True):
+        """ 
+        Update the target network based on the current weights. Normally we do
+        this with smooth=True except for the first step, or unless we want to
+        see how poorly hard updates perform generally.
+        """
+        if smooth:
+            self.sess.run(self.update_target_smooth)
+        else:
+            self.sess.run(self.update_target_hard)
+
+
     def update_weights(self):
-        # Run a session to execute `self.update_op`.
-        pass
+        """ Gradient-based update of current actor parameters. """
+        raise NotImplementedError()
 
 
 
@@ -232,6 +297,17 @@ class Critic(Network):
         # These should be the same among both nets.
         self.w_shapes = [w.get_shape().as_list() for w in self.weights]
         self.num_weights = np.sum([np.prod(sh) for sh in self.w_shapes])
+
+        # Update the target action network. Provide hard and smooth updates.
+        target_smooth = []
+        target_hard = []
+        for var, var_target in zip(sorted(self.weights,      key=lambda v: v.name),
+                                   sorted(self.weights_targ, key=lambda v: v.name)):
+            update_sm = self.args.tau * var + (1 - self.args.tau) * var_target
+            target_smooth.append(var_target.assign(update_sm))
+            target_hard.append(var_target.assign(var))
+        self.update_target_smooth = tf.group(*target_smooth)
+        self.update_target_hard   = tf.group(*target_hard)
 
 
     def _build_net(self, input_BO, acts_BO, scope):
@@ -260,6 +336,18 @@ class Critic(Network):
             return qvals_B
 
 
+    def update_target_net(self, smooth=True):
+        """ 
+        Update the target network based on the current weights. Normally we do
+        this with smooth=True except for the first step, or unless we want to
+        see how poorly hard updates perform generally.
+        """
+        if smooth:
+            self.sess.run(self.update_target_smooth)
+        else:
+            self.sess.run(self.update_target_hard)
+
+
     def update_weights(self):
-        # Run a session to execute `self.update_op`.
-        pass
+        """ Gradient-based update of current critic parameters. """
+        raise NotImplementedError()

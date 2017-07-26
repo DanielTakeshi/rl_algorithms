@@ -11,14 +11,14 @@ have its own READMEs with results there, along with usage instructions.
 Here are the algorithms currently implemented or in progress:
 
 - [Q-Learning, tabular version](https://github.com/DanielTakeshi/rl_algorithms/tree/master/q_learning) (should be correct)
-- [G-Learning](https://github.com/DanielTakeshi/rl_algorithms/tree/master/g_learning) (WIP)
+- [G-Learning](https://github.com/DanielTakeshi/rl_algorithms/tree/master/g_learning) (in progress)
 - [Behavioral Cloning](https://github.com/DanielTakeshi/rl_algorithms/tree/master/bc) (should be correct)
 - [Natural Evolution Strategies](https://github.com/DanielTakeshi/rl_algorithms/tree/master/es) (should be correct)
 - [Deep-Q Networks](https://github.com/DanielTakeshi/rl_algorithms/tree/master/dqn) (should be correct)
 - [Vanilla Policy Gradients](https://github.com/DanielTakeshi/rl_algorithms/tree/master/vpg) (should be correct)
-- [Deterministic Policy Gradients](https://github.com/DanielTakeshi/rl_algorithms/tree/master/dpg) (WIP, haven't started)
-- [Deep Deterministic Policy Gradients](https://github.com/DanielTakeshi/rl_algorithms/tree/master/ddpg) (WIP, haven't started)
-- [Trust Region Policy Optimization](https://github.com/DanielTakeshi/rl_algorithms/tree/master/trpo) (WIP)
+- [Deterministic Policy Gradients](https://github.com/DanielTakeshi/rl_algorithms/tree/master/dpg) (in progress)
+- [Deep Deterministic Policy Gradients](https://github.com/DanielTakeshi/rl_algorithms/tree/master/ddpg) (haven't started)
+- [Trust Region Policy Optimization](https://github.com/DanielTakeshi/rl_algorithms/tree/master/trpo) (in progress)
 
 Note: "Vanilla Policy Gradients" refers to the REINFORCE algorithm, also known
 as Monte Carlo Policy Gradient. Sometimes it's called an actor-critic method
