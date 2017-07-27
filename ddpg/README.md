@@ -14,7 +14,8 @@ Action space: -2 to 2.
 python main.py Pendulum-v0
 ```
 
-It is NOT even close to being done ...
+Status: not yet working. I think it's done but alas there is some bug somewhere.
+Ugh.
 
 
 ## References

@@ -38,8 +38,8 @@ if __name__ == "__main__":
 
     # Other stuff that I use for my own or based on other code.
     p.add_argument('--do_not_save', action='store_true')
-    p.add_argument('--learning_freq', type=int, default=5)
-    p.add_argument('--log_every_t_iter', type=int, default=5)
+    p.add_argument('--learning_freq', type=int, default=50)
+    p.add_argument('--log_every_t_iter', type=int, default=50)
     p.add_argument('--max_gradient', type=float, default=10.0)
     p.add_argument('--n_iter', type=int, default=10000)
     p.add_argument('--seed', type=int, default=0)
@@ -67,4 +67,3 @@ if __name__ == "__main__":
 
     ddpg = DDPGAgent(sess, env, test_env, args)
     ddpg.train()
-    ddpg.test()

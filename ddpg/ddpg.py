@@ -73,32 +73,38 @@ class DDPGAgent(object):
                         'done_mask_B': done_mask_B}
 
                 # Update the critic, get sampled policy gradients, update actor.
-                gradients = self.critic.update_weights(feed)
-                self.actor.update_weights(feed, gradients)
+                a_grads_BA, l2_error = self.critic.update_weights(feed)
+                actor_gradients = self.actor.update_weights(feed, a_grads_BA)
 
                 # Update both target networks.
                 self.critic.update_target_net()
                 self.actor.update_target_net()
 
             if (t % self.args.log_every_t_iter == 0) and (t > self.args.wait_until_rbuffer):
-                # Do some rollouts here and then record statistics.
+                # Do some rollouts here and then record statistics.  Note that
+                # some of these stats rely on stuff computed from sampling the
+                # replay buffer, so be careful interpreting these. The code
+                # probably needs to guard against this case as well.
                 stats = self._do_rollouts()
                 hours = (time.time()-t_start) / (60*60.)
-                logz.log_tabular("MeanReward",      np.mean(stats['reward']))
-                logz.log_tabular("MaxReward",       np.max(stats['reward']))
-                logz.log_tabular("MinReward",       np.min(stats['reward']))
-                logz.log_tabular("StdReward",       np.std(stats['reward']))
-                logz.log_tabular("MeanLength",      np.mean(stats['length']))
-                logz.log_tabular("NumTrainingEps",  num_episodes)
-                logz.log_tabular("TotalTimeHours",  hours)
-                logz.log_tabular("TotalIterations", t)
+                logz.log_tabular("MeanReward",     np.mean(stats['reward']))
+                logz.log_tabular("MaxReward",      np.max(stats['reward']))
+                logz.log_tabular("MinReward",      np.min(stats['reward']))
+                logz.log_tabular("StdReward",      np.std(stats['reward']))
+                logz.log_tabular("MeanLength",     np.mean(stats['length']))
+                logz.log_tabular("NumTrainingEps", num_episodes)
+                logz.log_tabular("L2ErrorCritic",  l2_error)
+                logz.log_tabular("QaGradL2Norm",   np.linalg.norm(a_grads_BA))
+                logz.log_tabular("TimeHours",      hours)
+                logz.log_tabular("Iterations",     t)
                 logz.dump_tabular()
 
 
     def _do_rollouts(self):
         """ 
         Some rollouts to evaluate the agent's progress.  Returns a dictionary
-        containing relevant statistics. 
+        containing relevant statistics. Later, I should parallelize this using
+        an array of environments.
         """
         num_episodes = 50
         stats = defaultdict(list)
@@ -206,10 +212,12 @@ class Actor(Network):
         self.update_target_smooth = tf.group(*target_smooth)
         self.update_target_hard   = tf.group(*target_hard)
 
-        # The Actor _update_, with gradients provided by the Critic. TODO check!
-        self.act_grads_BA = tf.placeholder(tf.float32, [None,self.ac_dim])
-        self.actor_gradients = tf.gradients(self.actions_BA, self.weights, -self.act_grads_BA)
-        self.optimize = tf.train.AdamOptimizer(self.args.step_size_actor).\
+        # The Actor _update_, with one gradient provided by the critic which
+        # serves as initialization (I think) since we need to multiply. Negate
+        # it (I think) since we we want to minimize a loss function.
+        self.a_grads_BA = tf.placeholder(tf.float32, [None,self.ac_dim])
+        self.actor_gradients = tf.gradients(self.actions_BA, self.weights, -self.a_grads_BA)
+        self.optimize_a = tf.train.AdamOptimizer(self.args.step_size_actor).\
                     apply_gradients(zip(self.actor_gradients, self.weights))
 
 
@@ -254,6 +262,7 @@ class Actor(Network):
         """
         act = self.sess.run(self.actions_BA, {self.obs_t_BO: obs[None]})
         act = act[0]
+        assert self.ac_low < act < self.ac_high
         if train:
             return act + np.random.normal(loc=self.args.ou_noise_theta,
                     scale=self.args.ou_noise_sigma, size=act.shape)
@@ -273,17 +282,12 @@ class Actor(Network):
             self.sess.run(self.update_target_hard)
 
 
-    def update_weights(self, f, gradients):
+    def update_weights(self, f, a_grads_BA):
         """ Gradient-based update of current actor parameters. """
-        feed = {
-            self.obs_t_BO:     f['obs_t_BO'],
-            self.act_t_BA:     f['act_t_BA'],
-            self.rew_t_B:      f['rew_t_B'],
-            self.obs_tp1_BO:   f['obs_tp1_BO'],
-            self.done_mask_B:  f['done_mask_B'],
-            self.act_grads_BA: gradients[0] # TODO check ..
-        }
-        self.sess.run(self.optimize, feed)
+        feed = {self.obs_t_BO: f['obs_t_BO'], self.a_grads_BA: a_grads_BA}
+        _, actor_gradients = self.sess.run([self.optimize_a, \
+                self.actor_gradients], feed)
+        return actor_gradients
 
 
 
@@ -327,7 +331,7 @@ class Critic(Network):
         # TODO l2 weight decay?
 
         # Use the built-in Adam optimizer, but might want to try gradient clipping?
-        self.optimize = tf.train.AdamOptimizer(self.args.step_size_critic).minimize(self.l2_error) 
+        self.optimize_c = tf.train.AdamOptimizer(self.args.step_size_critic).minimize(self.l2_error) 
 
         # Then return this in the gradient step to provide to the Actor.
         # TODO should check this, it _should_ deal with gradients row-wise, and
@@ -335,7 +339,7 @@ class Critic(Network):
         # Is this also equivalent if I did targ = tf.reduce_sum(self.qvals_B)? I
         # think so because it doesn't matter if we sum, action in b-th minibatch
         # only (directly) affects the b-th Q-value and has a gradient, right?
-        self.action_grads = tf.gradients(self.qvals_B, self.act_t_BA)
+        self.act_grads_BA = tf.gradients(self.qvals_B, self.act_t_BA)
 
 
     def _build_net(self, input_BO, acts_BO, scope):
@@ -382,7 +386,8 @@ class Critic(Network):
     def update_weights(self, f):
         """ 
         Gradient-based update of current Critic parameters.  Also return the
-        action gradients for the Actor update later.
+        action gradients for the Actor update later. This is the dQ/da in the
+        paper, and Q is the current Q network, not the target Q network.
         """
         feed = {
             self.obs_t_BO:    f['obs_t_BO'],
@@ -391,5 +396,9 @@ class Critic(Network):
             self.obs_tp1_BO:  f['obs_tp1_BO'],
             self.done_mask_B: f['done_mask_B']
         }
-        action_grads, _ = self.sess.run([self.action_grads, self.optimize], feed)
-        return action_grads
+        action_grads_BA, _, l2_error = self.sess.run([self.act_grads_BA, \
+                self.optimize_c, self.l2_error], feed)
+
+        # We assume that the only item in the list has what we want.
+        assert len(action_grads_BA) == 1
+        return action_grads_BA[0], l2_error
