@@ -1,3 +1,5 @@
+Note: this repository has not been updated in years and I don't have plans to do so. I recommend using rlpyt for future RL research.
+
 # Reinforcement Learning Algorithms
 
 I will use this repository to implement various reinforcement learning
